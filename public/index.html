@@ -440,6 +440,7 @@
   <script>
     const tg = window.Telegram?.WebApp;
     let userToken = null;
+    let currentPackages = [];
 
     if (tg) {
       tg.expand();
@@ -460,6 +461,7 @@
         }
 
         // Авторизация
+        console.log('Trying to authenticate...');
         const authResponse = await fetch('/auth/telegram', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -467,12 +469,15 @@
         });
 
         if (!authResponse.ok) {
-          document.getElementById('status').textContent = '❌ Ошибка аутентификации';
+          const error = await authResponse.json();
+          console.error('Auth error:', error);
+          document.getElementById('status').textContent = '❌ Ошибка аутентификации: ' + error.error;
           return;
         }
 
         const { token, user } = await authResponse.json();
         userToken = token;
+        console.log('Authenticated as:', user);
         document.getElementById('status').textContent = `✅ ${user.firstName}`;
 
         // Загружаем данные
@@ -487,50 +492,64 @@
 
     async function loadPackages() {
       try {
+        console.log('Loading packages...');
         const response = await fetch('/vpn/packages');
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
         const packages = await response.json();
+        console.log('Packages loaded:', packages);
+        currentPackages = packages;
 
         let html = '';
-        packages.forEach(pkg => {
-          html += `
-            <div class="package-card">
-              <div class="package-badge">🎁 ${pkg.servers} серверов</div>
-              <div class="package-header">
-                <div>
-                  <div class="package-name">${pkg.name}</div>
-                  <p style="font-size: 12px; color: rgba(255,255,255,0.7); margin-top: 5px;">${pkg.description || 'Premium VPN'}</p>
+        if (packages.length === 0) {
+          html = '<div class="no-data">📦 Нет доступных пакетов. Добавьте их в админ-панели.</div>';
+        } else {
+          packages.forEach(pkg => {
+            html += `
+              <div class="package-card">
+                <div class="package-badge">🎁 ${pkg.servers || 1} серверов</div>
+                <div class="package-header">
+                  <div>
+                    <div class="package-name">${pkg.name}</div>
+                    <p style="font-size: 12px; color: rgba(255,255,255,0.7); margin-top: 5px;">${pkg.description || 'Premium VPN'}</p>
+                  </div>
+                  <div class="package-price">
+                    <div class="package-price-value">$${parseFloat(pkg.price).toFixed(2)}</div>
+                    <div class="package-price-label">${pkg.durationDays} дней</div>
+                  </div>
                 </div>
-                <div class="package-price">
-                  <div class="package-price-value">$${pkg.price}</div>
-                  <div class="package-price-label">${pkg.durationDays} дней</div>
+                <ul class="package-features">
+                  <li>${pkg.servers || 1} высокоскоростных серверов</li>
+                  <li>${pkg.durationDays} дней доступа</li>
+                  <li>Неограниченный трафик</li>
+                  <li>256-бит шифрование</li>
+                </ul>
+                <div class="payment-methods">
+                  <button class="payment-method" onclick="preparePayment(${pkg.id}, 'crypto')">
+                    ₿ Крипто
+                  </button>
+                  <button class="payment-method" onclick="preparePayment(${pkg.id}, 'card')">
+                    💳 Карта
+                  </button>
                 </div>
               </div>
-              <ul class="package-features">
-                <li>${pkg.servers} высокоскоростных серверов</li>
-                <li>${pkg.durationDays} дней доступа</li>
-                <li>Неограниченный трафик</li>
-                <li>256-бит шифрование</li>
-              </ul>
-              <div class="payment-methods">
-                <button class="payment-method" onclick="preparePayment(${pkg.id}, 'crypto')">
-                  ₿ Крипто
-                </button>
-                <button class="payment-method" onclick="preparePayment(${pkg.id}, 'card')">
-                  💳 Карта
-                </button>
-              </div>
-            </div>
-          `;
-        });
+            `;
+          });
+        }
 
-        document.getElementById('packagesContainer').innerHTML = html || '<div class="no-data">Нет доступных пакетов</div>';
+        document.getElementById('packagesContainer').innerHTML = html;
       } catch (err) {
-        document.getElementById('packagesContainer').innerHTML = `<div class="error-msg">Ошибка: ${err.message}</div>`;
+        console.error('Load packages error:', err);
+        document.getElementById('packagesContainer').innerHTML = `<div class="error-msg">❌ Ошибка загрузки пакетов: ${err.message}</div>`;
       }
     }
 
     async function loadSubscriptions() {
       try {
+        console.log('Loading subscriptions...');
         const response = await fetch('/vpn/subscriptions', {
           headers: { 'Authorization': 'Bearer ' + userToken }
         });
@@ -538,10 +557,11 @@
         if (!response.ok) throw new Error('Failed to load subscriptions');
 
         const subscriptions = await response.json();
+        console.log('Subscriptions loaded:', subscriptions);
 
         let html = '';
         if (subscriptions.length === 0) {
-          html = '<div class="no-data">У вас нет активных подписок</div>';
+          html = '<div class="no-data">📦 У вас нет активных подписок</div>';
         } else {
           subscriptions.forEach(sub => {
             const endDate = new Date(sub.endDate);
@@ -568,12 +588,14 @@
 
         document.getElementById('subscriptionsContainer').innerHTML = html;
       } catch (err) {
-        document.getElementById('subscriptionsContainer').innerHTML = `<div class="error-msg">Ошибка: ${err.message}</div>`;
+        console.error('Load subscriptions error:', err);
+        document.getElementById('subscriptionsContainer').innerHTML = `<div class="error-msg">❌ Ошибка: ${err.message}</div>`;
       }
     }
 
     async function loadProfile() {
       try {
+        console.log('Loading profile...');
         const response = await fetch('/me', {
           headers: { 'Authorization': 'Bearer ' + userToken }
         });
@@ -581,30 +603,31 @@
         if (!response.ok) throw new Error('Failed to load profile');
 
         const { user, subscriptions } = await response.json();
+        console.log('Profile loaded:', user);
 
         const joinDate = new Date(user.createdAt);
         let html = `
           <div class="user-info">
             <div class="user-info-row">
-              <span class="user-info-label">ID Telegram</span>
+              <span class="user-info-label">👤 ID Telegram</span>
               <span class="user-info-value">${user.telegramId}</span>
             </div>
             <div class="user-info-row">
-              <span class="user-info-label">Имя</span>
+              <span class="user-info-label">😊 Имя</span>
               <span class="user-info-value">${user.firstName}</span>
             </div>
             ${user.username ? `
             <div class="user-info-row">
-              <span class="user-info-label">Username</span>
+              <span class="user-info-label">@username</span>
               <span class="user-info-value">@${user.username}</span>
             </div>
             ` : ''}
             <div class="user-info-row">
-              <span class="user-info-label">Активных подписок</span>
-              <span class="user-info-value">${subscriptions.length}</span>
+              <span class="user-info-label">📦 Активных подписок</span>
+              <span class="user-info-value">${subscriptions ? subscriptions.length : 0}</span>
             </div>
             <div class="user-info-row">
-              <span class="user-info-label">Дата регистрации</span>
+              <span class="user-info-label">📅 Регистрация</span>
               <span class="user-info-value">${joinDate.toLocaleDateString('ru-RU')}</span>
             </div>
           </div>
@@ -612,44 +635,15 @@
 
         document.getElementById('profileContainer').innerHTML = html;
       } catch (err) {
-        document.getElementById('profileContainer').innerHTML = `<div class="error-msg">Ошибка: ${err.message}</div>`;
-      }
-    }
-
-    async function buyPackage(packageId) {
-      try {
-        const response = await fetch('/vpn/purchase', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + userToken
-          },
-          body: JSON.stringify({ packageId })
-        });
-
-        if (!response.ok) throw new Error('Purchase failed');
-
-        const { transactionId, package: pkg } = await response.json();
-        
-        if (tg) {
-          tg.showPopup({
-            title: 'Покупка VPN',
-            message: `Пакет ${pkg.name} за $${pkg.price} добавлен.\n\nВыберите способ оплаты в приложении.`,
-            buttons: [
-              { id: 1, text: 'OK', type: 'default' }
-            ]
-          });
-        }
-
-        await loadPackages();
-      } catch (err) {
-        console.error('Purchase error:', err);
-        alert('Ошибка при покупке: ' + err.message);
+        console.error('Load profile error:', err);
+        document.getElementById('profileContainer').innerHTML = `<div class="error-msg">❌ Ошибка: ${err.message}</div>`;
       }
     }
 
     async function preparePayment(packageId, method) {
       try {
+        console.log('Preparing payment for package:', packageId, 'method:', method);
+        
         const response = await fetch('/vpn/payment', {
           method: 'POST',
           headers: {
@@ -659,57 +653,56 @@
           body: JSON.stringify({ packageId, method })
         });
 
-        if (!response.ok) throw new Error('Payment failed');
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Payment failed');
+        }
 
         const { paymentUrl, paymentData } = await response.json();
+        console.log('Payment data received:', paymentData);
         
         if (method === 'crypto') {
-          // Открыть Bybit платеж
-          if (paymentUrl) {
-            window.open(paymentUrl, '_blank');
-          }
-          // Начать проверку оплаты
-          await checkPaymentStatus(paymentData.orderId, packageId);
+          alert(`ℹ️ Демо режим: Нажмите OK для завершения оплаты (в реальности откроется Bybit)`);
+          
+          // В реальности откроется Bybit
+          // if (paymentUrl) {
+          //   window.open(paymentUrl, '_blank');
+          // }
+          
+          // Для демо сразу активируем подписку
+          await completePayment(packageId);
         } else {
-          // Картой
-          if (paymentUrl) {
-            window.location.href = paymentUrl;
-          }
+          alert('💳 Оплата картой: в разработке');
         }
       } catch (err) {
         console.error('Payment error:', err);
-        alert('Ошибка при оплате: ' + err.message);
+        alert('❌ Ошибка при оплате: ' + err.message);
       }
     }
 
-    async function checkPaymentStatus(orderId, packageId, attempts = 0) {
-      if (attempts > 30) {
-        alert('Время ожидания оплаты истекло');
-        return;
-      }
-
+    async function completePayment(packageId) {
       try {
-        const response = await fetch(`/vpn/payment-status/${orderId}`, {
-          headers: { 'Authorization': 'Bearer ' + userToken }
+        const response = await fetch('/vpn/complete-payment', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + userToken
+          },
+          body: JSON.stringify({ packageId })
         });
 
-        if (!response.ok) throw new Error('Status check failed');
-
-        const { status, vpnKey } = await response.json();
-
-        if (status === 'completed') {
-          alert('✅ Оплата успешна! Ваш VPN ключ активирован!');
-          await loadSubscriptions();
-          switchTab('subscriptions');
-        } else if (status === 'pending') {
-          // Проверить снова через 2 секунды
-          await new Promise(r => setTimeout(r, 2000));
-          await checkPaymentStatus(orderId, packageId, attempts + 1);
-        } else {
-          alert('❌ Оплата отменена или ошибка');
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Failed to complete payment');
         }
+
+        const data = await response.json();
+        alert('✅ Оплата успешна! Ваш VPN ключ активирован!');
+        await loadSubscriptions();
+        switchTab('subscriptions');
       } catch (err) {
-        console.error('Status check error:', err);
+        console.error('Complete payment error:', err);
+        alert('❌ Ошибка: ' + err.message);
       }
     }
 
@@ -724,11 +717,11 @@
 
       // Показываем нужный таб
       document.getElementById(tab).classList.add('active');
-      event.target.classList.add('active');
+      document.querySelector(`[onclick="switchTab('${tab}')"]`).classList.add('active');
     }
 
     // Инициализация при загрузке
-    init();
+    window.addEventListener('load', init);
   </script>
 </body>
 </html>

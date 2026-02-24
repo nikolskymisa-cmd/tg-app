@@ -14,6 +14,8 @@ import {
   updateTransactionStatus,
   getTransaction,
   getTransactionByOrderId,
+  createSubscription,
+  createPackage,
   initDb
 } from "./db.js";
 import { generateVpnKey, generateVpnConfig } from "./payment.js";
@@ -224,6 +226,55 @@ app.get("/vpn/payment-status/:orderId", auth, async (req, res) => {
       status: 'completed',
       vpnKey,
       message: 'Payment verified and key generated'
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Завершить платеж и создать подписку
+app.post("/vpn/complete-payment", auth, async (req, res) => {
+  try {
+    const { packageId } = req.body;
+    if (!packageId) return res.status(400).json({ error: "packageId required" });
+
+    const pkg = await getPackageById(packageId);
+    if (!pkg) return res.status(404).json({ error: "Package not found" });
+
+    // Генерируем VPN ключ
+    const vpnKey = generateVpnKey();
+
+    // Создаем подписку
+    const subscriptionId = await createSubscription(req.user.userId, packageId, vpnKey);
+
+    res.json({
+      subscriptionId,
+      vpnKey,
+      message: 'Subscription created successfully'
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Добавить VPN пакет (для админа)
+app.post("/vpn/package", async (req, res) => {
+  try {
+    const { name, description, durationDays, price, servers } = req.body;
+    
+    if (!name || !durationDays || !price) {
+      return res.status(400).json({ error: "name, durationDays, price required" });
+    }
+
+    const id = await createPackage(name, description, durationDays, price, servers || 1);
+
+    res.json({
+      id,
+      name,
+      description,
+      durationDays,
+      price,
+      servers: servers || 1
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

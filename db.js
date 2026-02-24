@@ -164,4 +164,13 @@ export async function getTransactionByOrderId(orderId) {
   return await get('SELECT * FROM transactions WHERE paymentData LIKE ?', [`%"orderId":"${orderId}"%`]);
 }
 
-export default { getOrCreateUser, getVpnPackages, getPackageById, createSubscription, getUserSubscriptions, getUserById, createTransaction, updateTransactionStatus, getTransaction, getTransactionByOrderId, initDb };
+export async function createPackage(name, description, durationDays, price, servers = 1) {
+  const result = await run(`
+    INSERT INTO vpn_packages (name, description, durationDays, price, servers, active)
+    VALUES (?, ?, ?, ?, ?, 1)
+  `, [name, description || '', durationDays, price, servers]);
+  
+  return result.lastID;
+}
+
+export { run, get, all };
