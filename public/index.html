@@ -1035,13 +1035,13 @@
         this.y = 150;
         this.width = 20;
         this.height = 20;
-        this.gravity = 0.2; // Было 0.4 - теперь легче падает
+        this.gravity = 0.1; // Уменьшено с 0.2 - очень плавное падение
         this.velocity = 0;
-        this.maxVelocity = 6; // Было 10 - теперь медленнее падает максимум
+        this.maxVelocity = 5; // Уменьшено с 6
       }
 
       jump() {
-        this.velocity = -6; // Было -10 - теперь более контролируемый прыжок
+        this.velocity = -5; // Было -6
       }
 
       update() {
@@ -1058,12 +1058,11 @@
       }
 
       isColliding(pipe) {
-        // Добавляем небольшой margin (2 пикселя) для более точного столкновения
-        const margin = 2;
-        return !(this.x + this.width - margin < pipe.x ||
-                 this.x + margin > pipe.x + pipe.width ||
-                 this.y + this.height - margin < pipe.top ||
-                 this.y + margin > pipe.bottom);
+        // Убираем margin - проверяем точные границы
+        return !(this.x + this.width < pipe.x ||
+                 this.x > pipe.x + pipe.width ||
+                 this.y + this.height < pipe.top ||
+                 this.y > pipe.bottom);
       }
     }
 
@@ -1093,11 +1092,35 @@
       }
 
       draw(ctx) {
-        ctx.fillStyle = '#4CAF50';
-        // Top pipe
+        // Top pipe - темно-зеленый
+        ctx.fillStyle = '#2d8a2d';
         ctx.fillRect(this.x, 0, this.width, this.top);
-        // Bottom pipe
+        
+        // Top pipe border (светлый край для четкости)
+        ctx.strokeStyle = '#4CAF50';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(this.x, 0, this.width, this.top);
+        
+        // Bottom pipe - темно-зеленый
+        ctx.fillStyle = '#2d8a2d';
         ctx.fillRect(this.x, this.bottom, this.width, gameCanvas.height - this.bottom);
+        
+        // Bottom pipe border (светлый край для четкости)
+        ctx.strokeStyle = '#4CAF50';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(this.x, this.bottom, this.width, gameCanvas.height - this.bottom);
+        
+        // Центральная линия дырки для визуальной ясности (опциональная сетка)
+        ctx.strokeStyle = 'rgba(76, 175, 80, 0.3)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([5, 5]);
+        ctx.beginPath();
+        ctx.moveTo(this.x - 10, this.top);
+        ctx.lineTo(this.x + this.width + 10, this.top);
+        ctx.moveTo(this.x - 10, this.bottom);
+        ctx.lineTo(this.x + this.width + 10, this.bottom);
+        ctx.stroke();
+        ctx.setLineDash([]);
       }
     }
 
