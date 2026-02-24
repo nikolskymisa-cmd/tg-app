@@ -166,6 +166,9 @@
           return;
         }
         
+        resultDiv.textContent = '⏳ Отправляю данные на сервер...';
+        resultDiv.classList.add('show');
+        
         const response = await fetch('/auth/telegram', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -173,19 +176,23 @@
         });
         
         const data = await response.json();
+        console.log('Auth response:', data);
         
         if (response.ok) {
           localStorage.setItem('token', data.token);
-          resultDiv.innerHTML = '✅ Успешная аутентификация!<br>Токен сохранен.';
+          resultDiv.innerHTML = '✅ <strong>Успешно авторизованы!</strong><br>Токен сохранен.<br><small>' + data.token.substring(0, 20) + '...</small>';
           resultDiv.classList.add('show');
           document.getElementById('status').textContent = '✅ Авторизован';
+          console.log('Token saved:', data.token);
         } else {
-          resultDiv.textContent = '❌ Ошибка: ' + data.error;
+          resultDiv.textContent = '❌ Ошибка: ' + (data.error || 'Неизвестная ошибка');
           resultDiv.classList.add('show');
+          console.error('Auth error:', data);
         }
       } catch (err) {
-        resultDiv.textContent = '❌ Ошибка: ' + err.message;
+        resultDiv.textContent = '❌ Ошибка сети: ' + err.message;
         resultDiv.classList.add('show');
+        console.error('Fetch error:', err);
       }
     }
     
@@ -193,22 +200,35 @@
       const resultDiv = document.getElementById('result');
       try {
         const token = localStorage.getItem('token');
+        
+        if (!token) {
+          resultDiv.textContent = '⚠️ Сначала авторизуйтесь нажав первую кнопку';
+          resultDiv.classList.add('show');
+          return;
+        }
+        
+        resultDiv.textContent = '⏳ Отправляю тестовый запрос...';
+        resultDiv.classList.add('show');
+        
         const response = await fetch('/me', {
-          headers: { 'Authorization': 'Bearer ' + (token || '') }
+          headers: { 'Authorization': 'Bearer ' + token }
         });
         
         const data = await response.json();
+        console.log('API response:', data);
         
         if (response.ok) {
-          resultDiv.innerHTML = `✅ Запрос успешен<br><strong>ID:</strong> ${data.telegramId}<br><strong>Статус:</strong> ${data.status}`;
+          resultDiv.innerHTML = `✅ <strong>Запрос прошел успешно!</strong><br>ID: ${data.telegramId}<br>Статус: ${data.status}<br>План: ${data.plan}`;
           resultDiv.classList.add('show');
         } else {
-          resultDiv.textContent = '❌ Ошибка: ' + data.error;
+          resultDiv.textContent = '❌ Ошибка API: ' + (data.error || 'Неизвестная ошибка');
           resultDiv.classList.add('show');
+          console.error('API error:', data);
         }
       } catch (err) {
-        resultDiv.textContent = '❌ Ошибка: ' + err.message;
+        resultDiv.textContent = '❌ Ошибка сети: ' + err.message;
         resultDiv.classList.add('show');
+        console.error('Fetch error:', err);
       }
     }
     
