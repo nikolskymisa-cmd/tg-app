@@ -10,9 +10,9 @@ import {
   getPackageById,
   getUserSubscriptions,
   createTransaction,
-  getUserById
+  getUserById,
+  initDb
 } from "./db.js";
-import './seed.js'; // Инициализируем БД
 
 const app = express();
 app.use(express.json());
@@ -68,7 +68,7 @@ app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-app.post("/auth/telegram", (req, res) => {
+app.post("/auth/telegram", async (req, res) => {
   const { initData } = req.body || {};
   if (!initData) return res.status(400).json({ error: "initData required" });
   if (!BOT_TOKEN) return res.status(500).json({ error: "BOT_TOKEN not set on server" });
@@ -81,10 +81,14 @@ app.post("/auth/telegram", (req, res) => {
     return res.status(401).json({ error: "initData expired" });
   }
 
-  const telegramId = v.user?.id;
-  const user = getOrCreateUser(telegramId, v.user?.first_name, v.user?.username);
-  const token = jwt.sign({ telegramId, userId: user.id }, JWT_SECRET, { expiresIn: "30d" });
-  res.json({ token, user });
+  try {
+    const telegramId = v.user?.id;
+    const user = await getOrCreateUser(telegramId, v.user?.first_name, v.user?.username);
+    const token = jwt.sign({ telegramId, userId: user.id }, JWT_SECRET, { expiresIn: "30d" });
+    res.json({ token, user });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 function auth(req, res, next) {
@@ -99,31 +103,39 @@ function auth(req, res, next) {
   }
 }
 
-app.get("/me", auth, (req, res) => {
-  const user = getUserById(req.user.userId);
-  const subscriptions = getUserSubscriptions(req.user.userId);
-  res.json({ 
-    user,
-    subscriptions,
-    activePlan: subscriptions.length > 0 ? subscriptions[0].packageName : null
-  });
+app.get("/me", auth, async (req, res) => {
+  try {
+    const user = await getUserById(req.user.userId);
+    const subscriptions = await getUserSubscriptions(req.user.userId);
+    res.json({ 
+      user,
+      subscriptions,
+      activePlan: subscriptions.length > 0 ? subscriptions[0].packageName : null
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // --- VPN API ---
-app.get("/vpn/packages", (req, res) => {
-  const packages = getVpnPackages();
-  res.json(packages);
+app.get("/vpn/packages", async (req, res) => {
+  try {
+    const packages = await getVpnPackages();
+    res.json(packages);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-app.post("/vpn/purchase", auth, (req, res) => {
+app.post("/vpn/purchase", auth, async (req, res) => {
   try {
     const { packageId } = req.body;
     if (!packageId) return res.status(400).json({ error: "packageId required" });
     
-    const pkg = getPackageById(packageId);
+    const pkg = await getPackageById(packageId);
     if (!pkg) return res.status(404).json({ error: "Package not found" });
     
-    const transactionId = createTransaction(req.user.userId, packageId, pkg.price);
+    const transactionId = await createTransaction(req.user.userId, packageId, pkg.price);
     
     res.json({
       transactionId,
@@ -135,11 +147,21 @@ app.post("/vpn/purchase", auth, (req, res) => {
   }
 });
 
-app.get("/vpn/subscriptions", auth, (req, res) => {
-  const subscriptions = getUserSubscriptions(req.user.userId);
-  res.json(subscriptions);
+app.get("/vpn/subscriptions", auth, async (req, res) => {
+  try {
+    const subscriptions = await getUserSubscriptions(req.user.userId);
+    res.json(subscriptions);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // --- start ---
 const PORT = config.PORT;
-app.listen(PORT, () => console.log("Started on " + PORT));
+
+(async () => {
+  await initDb();
+  await import('./seed.js');
+  
+  app.listen(PORT, () => console.log("Started on " + PORT));
+})();

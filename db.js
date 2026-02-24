@@ -1,113 +1,149 @@
-import Database from 'better-sqlite3';
+import sqlite3 from 'sqlite3';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const dbPath = path.join(__dirname, 'vpn.db');
 
-const db = new Database(dbPath);
-db.pragma('journal_mode = WAL');
+const sqlite = sqlite3.verbose();
+const db = new sqlite.Database(dbPath);
 
-// --- Таблицы ---
-db.exec(`
-  CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    telegramId INTEGER UNIQUE NOT NULL,
-    firstName TEXT,
-    username TEXT,
-    createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
+// Функция для выполнения запросов (синхронный интерфейс)
+const run = (sql, params = []) => {
+  return new Promise((resolve, reject) => {
+    db.run(sql, params, function(err) {
+      if (err) reject(err);
+      else resolve({ lastID: this.lastID, changes: this.changes });
+    });
+  });
+};
 
-  CREATE TABLE IF NOT EXISTS vpn_packages (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    description TEXT,
-    durationDays INTEGER NOT NULL,
-    price REAL NOT NULL,
-    servers INTEGER DEFAULT 1,
-    active INTEGER DEFAULT 1,
-    createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
+const get = (sql, params = []) => {
+  return new Promise((resolve, reject) => {
+    db.get(sql, params, (err, row) => {
+      if (err) reject(err);
+      else resolve(row);
+    });
+  });
+};
 
-  CREATE TABLE IF NOT EXISTS subscriptions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    userId INTEGER NOT NULL,
-    packageId INTEGER NOT NULL,
-    vpnKey TEXT UNIQUE NOT NULL,
-    vpnConfig TEXT,
-    startDate DATETIME DEFAULT CURRENT_TIMESTAMP,
-    endDate DATETIME NOT NULL,
-    status TEXT DEFAULT 'active',
-    FOREIGN KEY(userId) REFERENCES users(id),
-    FOREIGN KEY(packageId) REFERENCES vpn_packages(id)
-  );
+const all = (sql, params = []) => {
+  return new Promise((resolve, reject) => {
+    db.all(sql, params, (err, rows) => {
+      if (err) reject(err);
+      else resolve(rows || []);
+    });
+  });
+};
 
-  CREATE TABLE IF NOT EXISTS transactions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    userId INTEGER NOT NULL,
-    packageId INTEGER NOT NULL,
-    amount REAL NOT NULL,
-    status TEXT DEFAULT 'pending',
-    createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(userId) REFERENCES users(id),
-    FOREIGN KEY(packageId) REFERENCES vpn_packages(id)
-  );
-`);
+// --- Инициализация таблиц ---
+export async function initDb() {
+  await run(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      telegramId INTEGER UNIQUE NOT NULL,
+      firstName TEXT,
+      username TEXT,
+      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS vpn_packages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      description TEXT,
+      durationDays INTEGER NOT NULL,
+      price REAL NOT NULL,
+      servers INTEGER DEFAULT 1,
+      active INTEGER DEFAULT 1,
+      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS subscriptions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      userId INTEGER NOT NULL,
+      packageId INTEGER NOT NULL,
+      vpnKey TEXT UNIQUE NOT NULL,
+      vpnConfig TEXT,
+      startDate DATETIME DEFAULT CURRENT_TIMESTAMP,
+      endDate DATETIME NOT NULL,
+      status TEXT DEFAULT 'active',
+      FOREIGN KEY(userId) REFERENCES users(id),
+      FOREIGN KEY(packageId) REFERENCES vpn_packages(id)
+    )
+  `);
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS transactions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      userId INTEGER NOT NULL,
+      packageId INTEGER NOT NULL,
+      amount REAL NOT NULL,
+      status TEXT DEFAULT 'pending',
+      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(userId) REFERENCES users(id),
+      FOREIGN KEY(packageId) REFERENCES vpn_packages(id)
+    )
+  `);
+}
 
 // --- Функции ---
-export function getOrCreateUser(telegramId, firstName, username) {
-  let user = db.prepare('SELECT * FROM users WHERE telegramId = ?').get(telegramId);
+export async function getOrCreateUser(telegramId, firstName, username) {
+  let user = await get('SELECT * FROM users WHERE telegramId = ?', [telegramId]);
   if (!user) {
-    db.prepare('INSERT INTO users (telegramId, firstName, username) VALUES (?, ?, ?)')
-      .run(telegramId, firstName, username);
-    user = db.prepare('SELECT * FROM users WHERE telegramId = ?').get(telegramId);
+    await run('INSERT INTO users (telegramId, firstName, username) VALUES (?, ?, ?)',
+      [telegramId, firstName, username]);
+    user = await get('SELECT * FROM users WHERE telegramId = ?', [telegramId]);
   }
   return user;
 }
 
-export function getVpnPackages() {
-  return db.prepare('SELECT * FROM vpn_packages WHERE active = 1 ORDER BY price ASC').all();
+export async function getVpnPackages() {
+  return await all('SELECT * FROM vpn_packages WHERE active = 1 ORDER BY price ASC');
 }
 
-export function getPackageById(packageId) {
-  return db.prepare('SELECT * FROM vpn_packages WHERE id = ?').get(packageId);
+export async function getPackageById(packageId) {
+  return await get('SELECT * FROM vpn_packages WHERE id = ?', [packageId]);
 }
 
-export function createSubscription(userId, packageId, vpnKey) {
-  const pkg = getPackageById(packageId);
+export async function createSubscription(userId, packageId, vpnKey) {
+  const pkg = await getPackageById(packageId);
   if (!pkg) throw new Error('Package not found');
   
   const endDate = new Date();
   endDate.setDate(endDate.getDate() + pkg.durationDays);
   
-  const result = db.prepare(`
+  const result = await run(`
     INSERT INTO subscriptions (userId, packageId, vpnKey, endDate)
     VALUES (?, ?, ?, ?)
-  `).run(userId, packageId, vpnKey, endDate.toISOString());
+  `, [userId, packageId, vpnKey, endDate.toISOString()]);
   
-  return result.lastInsertRowid;
+  return result.lastID;
 }
 
-export function getUserSubscriptions(userId) {
-  return db.prepare(`
+export async function getUserSubscriptions(userId) {
+  return await all(`
     SELECT s.*, p.name as packageName, p.durationDays
     FROM subscriptions s
     JOIN vpn_packages p ON s.packageId = p.id
     WHERE s.userId = ? AND s.status = 'active'
     ORDER BY s.endDate DESC
-  `).all(userId);
+  `, [userId]);
 }
 
-export function getUserById(userId) {
-  return db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+export async function getUserById(userId) {
+  return await get('SELECT * FROM users WHERE id = ?', [userId]);
 }
 
-export function createTransaction(userId, packageId, amount) {
-  const result = db.prepare(`
+export async function createTransaction(userId, packageId, amount) {
+  const result = await run(`
     INSERT INTO transactions (userId, packageId, amount, status)
     VALUES (?, ?, ?, 'pending')
-  `).run(userId, packageId, amount);
-  return result.lastInsertRowid;
+  `, [userId, packageId, amount]);
+  return result.lastID;
 }
 
-export default db;
+export default { getOrCreateUser, getVpnPackages, getPackageById, createSubscription, getUserSubscriptions, getUserById, createTransaction, initDb };
