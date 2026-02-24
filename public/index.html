@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>TG Mini App</title>
+  <title>VPN Store</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
     * {
@@ -13,233 +13,510 @@
     }
     
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      min-height: 100vh;
-      padding: 20px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f5f5;
+      padding: 10px;
     }
     
     .container {
-      background: white;
-      border-radius: 20px;
-      padding: 30px;
-      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
-      max-width: 400px;
-      width: 100%;
+      max-width: 500px;
+      margin: 0 auto;
     }
-    
-    h1 {
-      color: #333;
-      margin-bottom: 10px;
-      font-size: 28px;
-    }
-    
-    .status {
-      color: #666;
-      font-size: 14px;
+
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 20px;
+      border-radius: 15px;
       margin-bottom: 20px;
+      text-align: center;
     }
-    
-    .info-box {
-      background: #f5f5f5;
-      border-radius: 12px;
-      padding: 15px;
-      margin: 15px 0;
-      border-left: 4px solid #667eea;
+
+    .header h1 {
+      font-size: 24px;
+      margin-bottom: 5px;
     }
-    
-    .info-box strong {
-      color: #333;
-    }
-    
-    .info-box p {
-      color: #666;
+
+    .header p {
       font-size: 13px;
-      margin-top: 5px;
-      word-break: break-all;
+      opacity: 0.9;
     }
-    
-    button {
-      width: 100%;
+
+    .tabs {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      border-bottom: 1px solid #ddd;
+    }
+
+    .tab-btn {
+      flex: 1;
       padding: 12px;
-      margin-top: 15px;
+      background: none;
       border: none;
-      border-radius: 10px;
-      font-size: 16px;
-      font-weight: 600;
+      border-bottom: 3px solid transparent;
       cursor: pointer;
+      font-weight: 600;
+      color: #999;
       transition: all 0.3s;
     }
-    
+
+    .tab-btn.active {
+      color: #667eea;
+      border-bottom-color: #667eea;
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    .package-card {
+      background: white;
+      border-radius: 12px;
+      padding: 15px;
+      margin-bottom: 15px;
+      border: 2px solid #eee;
+      transition: all 0.3s;
+    }
+
+    .package-card:hover {
+      border-color: #667eea;
+      box-shadow: 0 5px 15px rgba(102, 126, 234, 0.2);
+    }
+
+    .package-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .package-name {
+      font-weight: 600;
+      font-size: 16px;
+    }
+
+    .package-price {
+      font-size: 20px;
+      font-weight: 700;
+      color: #667eea;
+    }
+
+    .package-price small {
+      font-size: 12px;
+      color: #999;
+      display: block;
+    }
+
+    .package-features {
+      list-style: none;
+      font-size: 13px;
+      color: #666;
+      margin: 10px 0;
+    }
+
+    .package-features li {
+      padding: 5px 0;
+      padding-left: 20px;
+      position: relative;
+    }
+
+    .package-features li:before {
+      content: "✓";
+      position: absolute;
+      left: 0;
+      color: #4caf50;
+      font-weight: bold;
+    }
+
+    .btn {
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 10px;
+      transition: all 0.3s;
+    }
+
     .btn-primary {
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       color: white;
     }
-    
+
     .btn-primary:hover {
       transform: translateY(-2px);
-      box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+      box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
     }
-    
+
     .btn-secondary {
       background: #f5f5f5;
       color: #333;
     }
-    
+
     .btn-secondary:hover {
       background: #efefef;
     }
-    
-    .result {
-      margin-top: 20px;
+
+    .subscription-card {
+      background: white;
+      border-radius: 12px;
       padding: 15px;
-      background: #e8f5e9;
-      border-radius: 10px;
-      color: #2e7d32;
-      display: none;
+      margin-bottom: 15px;
+      border-left: 4px solid #4caf50;
     }
-    
-    .result.show {
-      display: block;
+
+    .subscription-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
     }
-    
-    .emoji {
-      font-size: 32px;
+
+    .subscription-name {
+      font-weight: 600;
+      font-size: 16px;
+    }
+
+    .subscription-status {
+      background: #4caf50;
+      color: white;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .subscription-details {
+      font-size: 13px;
+      color: #666;
+      margin: 10px 0;
+      line-height: 1.6;
+    }
+
+    .vpn-key {
+      background: #f5f5f5;
+      padding: 10px;
+      border-radius: 6px;
+      margin-top: 10px;
+      word-break: break-all;
+      font-family: monospace;
+      font-size: 11px;
+      color: #333;
+    }
+
+    .no-data {
       text-align: center;
-      margin: 20px 0;
+      padding: 40px 20px;
+      color: #999;
+    }
+
+    .user-info {
+      background: white;
+      border-radius: 12px;
+      padding: 15px;
+      margin-bottom: 15px;
+    }
+
+    .user-info-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid #eee;
+    }
+
+    .user-info-row:last-child {
+      border-bottom: none;
+    }
+
+    .user-info-label {
+      color: #999;
+      font-size: 13px;
+    }
+
+    .user-info-value {
+      font-weight: 600;
+      color: #333;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 40px 20px;
+      color: #999;
+    }
+
+    .error-msg {
+      background: #ffebee;
+      color: #c62828;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 15px;
+      font-size: 13px;
+    }
+
+    .success-msg {
+      background: #e8f5e9;
+      color: #2e7d32;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 15px;
+      font-size: 13px;
     }
   </style>
 </head>
 <body>
   <div class="container">
-    <div class="emoji">🚀</div>
-    <h1>Мини-приложение</h1>
-    <div class="status">
-      Статус: <span id="status">загрузка...</span>
+    <div class="header">
+      <h1>🚀 VPN Store</h1>
+      <p id="status">Загрузка...</p>
     </div>
-    
-    <div class="info-box">
-      <strong>👤 Профиль</strong>
-      <p id="userInfo">Загрузка данных...</p>
+
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTab('packages')">🛒 Магазин</button>
+      <button class="tab-btn" onclick="switchTab('subscriptions')">📦 Мои подписки</button>
+      <button class="tab-btn" onclick="switchTab('profile')">👤 Профиль</button>
     </div>
-    
-    <div class="info-box">
-      <strong>🔐 Токен</strong>
-      <p id="tokenInfo">Получение токена...</p>
+
+    <!-- Магазин -->
+    <div id="packages" class="tab-content active">
+      <div id="packagesContainer" class="loading">Загрузка пакетов...</div>
     </div>
-    
-    <button class="btn-primary" onclick="authenticateWithTelegram()">
-      ✓ Подтвердить через Telegram
-    </button>
-    
-    <button class="btn-secondary" onclick="testApi()">
-      🧪 Тестовый запрос
-    </button>
-    
-    <div id="result" class="result"></div>
+
+    <!-- Подписки -->
+    <div id="subscriptions" class="tab-content">
+      <div id="subscriptionsContainer" class="loading">Загрузка подписок...</div>
+    </div>
+
+    <!-- Профиль -->
+    <div id="profile" class="tab-content">
+      <div id="profileContainer" class="loading">Загрузка профиля...</div>
+    </div>
   </div>
 
   <script>
     const tg = window.Telegram?.WebApp;
-    
+    let userToken = null;
+
     if (tg) {
       tg.expand();
       tg.enableClosingConfirmation();
     }
-    
-    async function authenticateWithTelegram() {
-      const resultDiv = document.getElementById('result');
+
+    async function init() {
       try {
         if (!tg) {
-          resultDiv.textContent = '❌ Telegram WebApp не доступен';
-          resultDiv.classList.add('show');
+          document.getElementById('status').textContent = '⚠️ Откройте из Telegram';
           return;
         }
-        
+
         const initData = tg.initData;
         if (!initData) {
-          resultDiv.textContent = '❌ initData не найдена';
-          resultDiv.classList.add('show');
+          document.getElementById('status').textContent = '⚠️ Не удается получить initData';
           return;
         }
-        
-        resultDiv.textContent = '⏳ Отправляю данные на сервер...';
-        resultDiv.classList.add('show');
-        
-        const response = await fetch('/auth/telegram', {
+
+        // Авторизация
+        const authResponse = await fetch('/auth/telegram', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ initData })
         });
-        
-        const data = await response.json();
-        console.log('Auth response:', data);
-        
-        if (response.ok) {
-          localStorage.setItem('token', data.token);
-          resultDiv.innerHTML = '✅ <strong>Успешно авторизованы!</strong><br>Токен сохранен.<br><small>' + data.token.substring(0, 20) + '...</small>';
-          resultDiv.classList.add('show');
-          document.getElementById('status').textContent = '✅ Авторизован';
-          console.log('Token saved:', data.token);
-        } else {
-          resultDiv.textContent = '❌ Ошибка: ' + (data.error || 'Неизвестная ошибка');
-          resultDiv.classList.add('show');
-          console.error('Auth error:', data);
-        }
-      } catch (err) {
-        resultDiv.textContent = '❌ Ошибка сети: ' + err.message;
-        resultDiv.classList.add('show');
-        console.error('Fetch error:', err);
-      }
-    }
-    
-    async function testApi() {
-      const resultDiv = document.getElementById('result');
-      try {
-        const token = localStorage.getItem('token');
-        
-        if (!token) {
-          resultDiv.textContent = '⚠️ Сначала авторизуйтесь нажав первую кнопку';
-          resultDiv.classList.add('show');
+
+        if (!authResponse.ok) {
+          document.getElementById('status').textContent = '❌ Ошибка аутентификации';
           return;
         }
-        
-        resultDiv.textContent = '⏳ Отправляю тестовый запрос...';
-        resultDiv.classList.add('show');
-        
-        const response = await fetch('/me', {
-          headers: { 'Authorization': 'Bearer ' + token }
-        });
-        
-        const data = await response.json();
-        console.log('API response:', data);
-        
-        if (response.ok) {
-          resultDiv.innerHTML = `✅ <strong>Запрос прошел успешно!</strong><br>ID: ${data.telegramId}<br>Статус: ${data.status}<br>План: ${data.plan}`;
-          resultDiv.classList.add('show');
-        } else {
-          resultDiv.textContent = '❌ Ошибка API: ' + (data.error || 'Неизвестная ошибка');
-          resultDiv.classList.add('show');
-          console.error('API error:', data);
-        }
+
+        const { token, user } = await authResponse.json();
+        userToken = token;
+        document.getElementById('status').textContent = `✅ ${user.firstName}`;
+
+        // Загружаем данные
+        await loadPackages();
+        await loadSubscriptions();
+        await loadProfile();
       } catch (err) {
-        resultDiv.textContent = '❌ Ошибка сети: ' + err.message;
-        resultDiv.classList.add('show');
-        console.error('Fetch error:', err);
+        console.error('Init error:', err);
+        document.getElementById('status').textContent = '❌ Ошибка: ' + err.message;
       }
     }
-    
-    // Инициализация
-    if (tg) {
-      document.getElementById('status').textContent = '✅ Telegram доступен';
-      document.getElementById('userInfo').innerHTML = `<strong>ID:</strong> ${tg.initDataUnsafe?.user?.id || 'N/A'}<br><strong>Имя:</strong> ${tg.initDataUnsafe?.user?.first_name || 'N/A'}`;
-    } else {
-      document.getElementById('status').textContent = '⚠️ Telegram недоступен';
-      document.getElementById('userInfo').textContent = 'Откройте из Телеграма';
+
+    async function loadPackages() {
+      try {
+        const response = await fetch('/vpn/packages');
+        const packages = await response.json();
+
+        let html = '';
+        packages.forEach(pkg => {
+          html += `
+            <div class="package-card">
+              <div class="package-header">
+                <div class="package-name">${pkg.name}</div>
+                <div class="package-price">
+                  $${pkg.price}
+                  <small>${pkg.durationDays} дней</small>
+                </div>
+              </div>
+              <p style="font-size: 13px; color: #666; margin-bottom: 10px;">${pkg.description || 'VPN подписка'}</p>
+              <ul class="package-features">
+                <li>${pkg.servers} серверов</li>
+                <li>${pkg.durationDays} дней доступа</li>
+                <li>Неограниченный трафик</li>
+              </ul>
+              <button class="btn btn-primary" onclick="buyPackage(${pkg.id})">
+                Купить за $${pkg.price}
+              </button>
+            </div>
+          `;
+        });
+
+        document.getElementById('packagesContainer').innerHTML = html || '<div class="no-data">Нет доступных пакетов</div>';
+      } catch (err) {
+        document.getElementById('packagesContainer').innerHTML = `<div class="error-msg">Ошибка: ${err.message}</div>`;
+      }
     }
+
+    async function loadSubscriptions() {
+      try {
+        const response = await fetch('/vpn/subscriptions', {
+          headers: { 'Authorization': 'Bearer ' + userToken }
+        });
+
+        if (!response.ok) throw new Error('Failed to load subscriptions');
+
+        const subscriptions = await response.json();
+
+        let html = '';
+        if (subscriptions.length === 0) {
+          html = '<div class="no-data">У вас нет активных подписок</div>';
+        } else {
+          subscriptions.forEach(sub => {
+            const endDate = new Date(sub.endDate);
+            const daysLeft = Math.ceil((endDate - new Date()) / (1000 * 60 * 60 * 24));
+
+            html += `
+              <div class="subscription-card">
+                <div class="subscription-header">
+                  <div class="subscription-name">${sub.packageName}</div>
+                  <div class="subscription-status">Активна</div>
+                </div>
+                <div class="subscription-details">
+                  <div>📅 До ${endDate.toLocaleDateString('ru-RU')}</div>
+                  <div>⏳ ${daysLeft} дней осталось</div>
+                </div>
+                <div class="vpn-key">
+                  <strong>VPN Ключ:</strong><br>
+                  ${sub.vpnKey}
+                </div>
+              </div>
+            `;
+          });
+        }
+
+        document.getElementById('subscriptionsContainer').innerHTML = html;
+      } catch (err) {
+        document.getElementById('subscriptionsContainer').innerHTML = `<div class="error-msg">Ошибка: ${err.message}</div>`;
+      }
+    }
+
+    async function loadProfile() {
+      try {
+        const response = await fetch('/me', {
+          headers: { 'Authorization': 'Bearer ' + userToken }
+        });
+
+        if (!response.ok) throw new Error('Failed to load profile');
+
+        const { user, subscriptions } = await response.json();
+
+        const joinDate = new Date(user.createdAt);
+        let html = `
+          <div class="user-info">
+            <div class="user-info-row">
+              <span class="user-info-label">ID Telegram</span>
+              <span class="user-info-value">${user.telegramId}</span>
+            </div>
+            <div class="user-info-row">
+              <span class="user-info-label">Имя</span>
+              <span class="user-info-value">${user.firstName}</span>
+            </div>
+            ${user.username ? `
+            <div class="user-info-row">
+              <span class="user-info-label">Username</span>
+              <span class="user-info-value">@${user.username}</span>
+            </div>
+            ` : ''}
+            <div class="user-info-row">
+              <span class="user-info-label">Активных подписок</span>
+              <span class="user-info-value">${subscriptions.length}</span>
+            </div>
+            <div class="user-info-row">
+              <span class="user-info-label">Дата регистрации</span>
+              <span class="user-info-value">${joinDate.toLocaleDateString('ru-RU')}</span>
+            </div>
+          </div>
+        `;
+
+        document.getElementById('profileContainer').innerHTML = html;
+      } catch (err) {
+        document.getElementById('profileContainer').innerHTML = `<div class="error-msg">Ошибка: ${err.message}</div>`;
+      }
+    }
+
+    async function buyPackage(packageId) {
+      try {
+        const response = await fetch('/vpn/purchase', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + userToken
+          },
+          body: JSON.stringify({ packageId })
+        });
+
+        if (!response.ok) throw new Error('Purchase failed');
+
+        const { transactionId, package: pkg } = await response.json();
+        
+        // После покупки просим пользователя выполнить команду в боте
+        if (tg) {
+          tg.showPopup({
+            title: 'Покупка VPN',
+            message: `Пакет ${pkg.name} за $${pkg.price} добавлен в корзину.\n\nИспользуйте команду:\n\n/pay ${transactionId}`,
+            buttons: [
+              { id: 1, text: 'OK', type: 'default' }
+            ]
+          });
+        }
+
+        await loadPackages();
+      } catch (err) {
+        console.error('Purchase error:', err);
+        alert('Ошибка при покупке: ' + err.message);
+      }
+    }
+
+    function switchTab(tab) {
+      // Скрываем все табы
+      document.querySelectorAll('.tab-content').forEach(el => {
+        el.classList.remove('active');
+      });
+      document.querySelectorAll('.tab-btn').forEach(el => {
+        el.classList.remove('active');
+      });
+
+      // Показываем нужный таб
+      document.getElementById(tab).classList.add('active');
+      event.target.classList.add('active');
+    }
+
+    // Инициализация при загрузке
+    init();
   </script>
 </body>
 </html>

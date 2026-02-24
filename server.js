@@ -4,6 +4,15 @@ import jwt from "jsonwebtoken";
 import path from "path";
 import { fileURLToPath } from "url";
 import { config } from "./config.js";
+import {
+  getOrCreateUser,
+  getVpnPackages,
+  getPackageById,
+  getUserSubscriptions,
+  createTransaction,
+  getUserById
+} from "./db.js";
+import './seed.js'; // Инициализируем БД
 
 const app = express();
 app.use(express.json());
@@ -73,8 +82,9 @@ app.post("/auth/telegram", (req, res) => {
   }
 
   const telegramId = v.user?.id;
-  const token = jwt.sign({ telegramId }, JWT_SECRET, { expiresIn: "7d" });
-  res.json({ token });
+  const user = getOrCreateUser(telegramId, v.user?.first_name, v.user?.username);
+  const token = jwt.sign({ telegramId, userId: user.id }, JWT_SECRET, { expiresIn: "30d" });
+  res.json({ token, user });
 });
 
 function auth(req, res, next) {
@@ -90,7 +100,44 @@ function auth(req, res, next) {
 }
 
 app.get("/me", auth, (req, res) => {
-  res.json({ telegramId: req.user.telegramId, status: "active", plan: "demo" });
+  const user = getUserById(req.user.userId);
+  const subscriptions = getUserSubscriptions(req.user.userId);
+  res.json({ 
+    user,
+    subscriptions,
+    activePlan: subscriptions.length > 0 ? subscriptions[0].packageName : null
+  });
+});
+
+// --- VPN API ---
+app.get("/vpn/packages", (req, res) => {
+  const packages = getVpnPackages();
+  res.json(packages);
+});
+
+app.post("/vpn/purchase", auth, (req, res) => {
+  try {
+    const { packageId } = req.body;
+    if (!packageId) return res.status(400).json({ error: "packageId required" });
+    
+    const pkg = getPackageById(packageId);
+    if (!pkg) return res.status(404).json({ error: "Package not found" });
+    
+    const transactionId = createTransaction(req.user.userId, packageId, pkg.price);
+    
+    res.json({
+      transactionId,
+      package: pkg,
+      message: "Payment required. Use /pay command in bot."
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/vpn/subscriptions", auth, (req, res) => {
+  const subscriptions = getUserSubscriptions(req.user.userId);
+  res.json(subscriptions);
 });
 
 // --- start ---
