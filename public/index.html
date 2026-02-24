@@ -1058,10 +1058,12 @@
       }
 
       isColliding(pipe) {
-        return !(this.x + this.width < pipe.x ||
-                 this.x > pipe.x + pipe.width ||
-                 this.y + this.height < pipe.top ||
-                 this.y > pipe.bottom);
+        // Добавляем небольшой margin (2 пикселя) для более точного столкновения
+        const margin = 2;
+        return !(this.x + this.width - margin < pipe.x ||
+                 this.x + margin > pipe.x + pipe.width ||
+                 this.y + this.height - margin < pipe.top ||
+                 this.y + margin > pipe.bottom);
       }
     }
 
@@ -1069,9 +1071,21 @@
       constructor(x) {
         this.x = x;
         this.width = 60;
-        this.gap = 130; // Было 100 - теперь больше промежуток между трубами
-        this.top = Math.floor(Math.random() * (gameCanvas.height - this.gap - 50)) + 25;
+        this.gap = 130;
+        
+        // Улучшенная генерация: убедиться что дырка всегда нормального размера
+        const minTop = 40; // Минимальное расстояние до верха
+        const minBottom = 40; // Минимальное расстояние до низа
+        const availableSpace = gameCanvas.height - this.gap - minTop - minBottom;
+        
+        if (availableSpace > 0) {
+          this.top = Math.floor(Math.random() * availableSpace) + minTop;
+        } else {
+          this.top = minTop;
+        }
+        
         this.bottom = this.top + this.gap;
+        this.passed = false; // Инициализируем флаг
       }
 
       update() {
@@ -1128,23 +1142,24 @@
       }
 
       // Update and draw pipes
-      pipes.forEach((pipe, index) => {
+      for (let i = 0; i < pipes.length; i++) {
+        const pipe = pipes[i];
         pipe.update();
         pipe.draw(gameCtx);
 
-        // Check collision
+        // Check collision - выходим при первой коллизии
         if (bird.isColliding(pipe)) {
           endGame();
           return;
         }
 
-        // Passed pipe
-        if (pipe.x + pipe.width < bird.x && !pipe.passed) {
+        // Passed pipe - проверяем только если не было коллизии
+        if (!pipe.passed && pipe.x + pipe.width < bird.x) {
           pipe.passed = true;
           score++;
           document.getElementById('gameScore').textContent = score;
         }
-      });
+      };
 
       // Remove off-screen pipes
       pipes = pipes.filter(p => p.x + p.width > 0);
