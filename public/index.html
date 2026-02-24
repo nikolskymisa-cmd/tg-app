@@ -1,48 +1,54 @@
-<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Кабинет</title>
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
-</head>
-<body style="font-family:Arial;padding:16px;">
-  <h2>Кабинет</h2>
-  <div id="status">Загрузка…</div>
-  <button id="btn" style="display:none;margin-top:12px;">Показать мой профиль</button>
-  <pre id="out" style="background:#f5f5f5;padding:12px;border-radius:8px;margin-top:12px;"></pre>
-
 <script>
 (async () => {
   const tg = window.Telegram.WebApp;
   tg.ready();
 
+  const statusEl = document.getElementById('status');
+  const outEl = document.getElementById('out');
+  const btnEl = document.getElementById('btn');
+
   const initData = tg.initData;
-  document.getElementById('status').textContent =
-    initData ? "Открыто внутри Telegram ✅" : "Открыто не из Telegram ❌";
 
-  const r = await fetch("/auth/telegram", {
-    method: "POST",
-    headers: { "Content-Type":"application/json" },
-    body: JSON.stringify({ initData })
-  });
+  statusEl.textContent = initData
+    ? "Открыто внутри Telegram ✅. Авторизуюсь…"
+    : "Открыто не из Telegram ❌";
 
-  if (!r.ok) {
-    document.getElementById('status').textContent = "Ошибка авторизации ❌";
-    return;
+  // таймаут 15 секунд, чтобы не висело бесконечно
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), 15000);
+
+  try {
+    const r = await fetch("/auth/telegram", {
+      method: "POST",
+      headers: { "Content-Type":"application/json" },
+      body: JSON.stringify({ initData }),
+      signal: controller.signal
+    });
+    clearTimeout(t);
+
+    if (!r.ok) {
+      const txt = await r.text();
+      statusEl.textContent = "Ошибка авторизации ❌";
+      outEl.textContent = txt;
+      return;
+    }
+
+    const { token } = await r.json();
+    localStorage.setItem("token", token);
+
+    statusEl.textContent = "Авторизация ✅";
+    btnEl.style.display = "inline-block";
+
+    btnEl.onclick = async () => {
+      const me = await fetch("/me", {
+        headers: { "Authorization": "Bearer " + localStorage.getItem("token") }
+      }).then(x => x.json());
+
+      outEl.textContent = JSON.stringify(me, null, 2);
+    };
+  } catch (e) {
+    statusEl.textContent = "Сервер долго просыпается. Попробуй ещё раз через 10–20 сек.";
+    outEl.textContent = String(e);
   }
-
-  const { token } = await r.json();
-  localStorage.setItem("token", token);
-
-  document.getElementById('btn').style.display = "inline-block";
-  document.getElementById('btn').onclick = async () => {
-    const me = await fetch("/me", {
-      headers: { "Authorization": "Bearer " + localStorage.getItem("token") }
-    }).then(x => x.json());
-    document.getElementById('out').textContent = JSON.stringify(me, null, 2);
-  };
 })();
 </script>
-</body>
-</html>
