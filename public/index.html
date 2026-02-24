@@ -1027,7 +1027,7 @@
     let bird = null;
     let pipes = [];
     let score = 0;
-    let gameSpeed = 5;
+    let gameSpeed = 2; // Было 5 - теперь медленнее
 
     class Bird {
       constructor() {
@@ -1035,13 +1035,13 @@
         this.y = 150;
         this.width = 20;
         this.height = 20;
-        this.gravity = 0.4;
+        this.gravity = 0.2; // Было 0.4 - теперь легче падает
         this.velocity = 0;
-        this.maxVelocity = 10;
+        this.maxVelocity = 6; // Было 10 - теперь медленнее падает максимум
       }
 
       jump() {
-        this.velocity = -10;
+        this.velocity = -6; // Было -10 - теперь более контролируемый прыжок
       }
 
       update() {
@@ -1069,7 +1069,7 @@
       constructor(x) {
         this.x = x;
         this.width = 60;
-        this.gap = 100;
+        this.gap = 130; // Было 100 - теперь больше промежуток между трубами
         this.top = Math.floor(Math.random() * (gameCanvas.height - this.gap - 50)) + 25;
         this.bottom = this.top + this.gap;
       }
@@ -1122,8 +1122,8 @@
       bird.update();
       bird.draw(gameCtx);
 
-      // Add pipes
-      if (pipes.length === 0 || pipes[pipes.length - 1].x < gameCanvas.width - 200) {
+      // Add pipes (расстояние между трубами увеличено)
+      if (pipes.length === 0 || pipes[pipes.length - 1].x < gameCanvas.width - 250) {
         pipes.push(new Pipe(gameCanvas.width));
       }
 
