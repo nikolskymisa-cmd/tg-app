@@ -1,12 +1,225 @@
 <!doctype html>
-<html>
+<html lang="ru">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Test</title>
+  <title>TG Mini App</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .container {
+      background: white;
+      border-radius: 20px;
+      padding: 30px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+      max-width: 400px;
+      width: 100%;
+    }
+    
+    h1 {
+      color: #333;
+      margin-bottom: 10px;
+      font-size: 28px;
+    }
+    
+    .status {
+      color: #666;
+      font-size: 14px;
+      margin-bottom: 20px;
+    }
+    
+    .info-box {
+      background: #f5f5f5;
+      border-radius: 12px;
+      padding: 15px;
+      margin: 15px 0;
+      border-left: 4px solid #667eea;
+    }
+    
+    .info-box strong {
+      color: #333;
+    }
+    
+    .info-box p {
+      color: #666;
+      font-size: 13px;
+      margin-top: 5px;
+      word-break: break-all;
+    }
+    
+    button {
+      width: 100%;
+      padding: 12px;
+      margin-top: 15px;
+      border: none;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    
+    .btn-primary {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+    
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+    }
+    
+    .btn-secondary {
+      background: #f5f5f5;
+      color: #333;
+    }
+    
+    .btn-secondary:hover {
+      background: #efefef;
+    }
+    
+    .result {
+      margin-top: 20px;
+      padding: 15px;
+      background: #e8f5e9;
+      border-radius: 10px;
+      color: #2e7d32;
+      display: none;
+    }
+    
+    .result.show {
+      display: block;
+    }
+    
+    .emoji {
+      font-size: 32px;
+      text-align: center;
+      margin: 20px 0;
+    }
+  </style>
 </head>
-<body style="font-family:Arial;padding:20px;">
-  <h1>Я живой ✅</h1>
-  <p>Если ты это видишь — значит public/index.html реально отдаётся.</p>
+<body>
+  <div class="container">
+    <div class="emoji">🚀</div>
+    <h1>Мини-приложение</h1>
+    <div class="status">
+      Статус: <span id="status">загрузка...</span>
+    </div>
+    
+    <div class="info-box">
+      <strong>👤 Профиль</strong>
+      <p id="userInfo">Загрузка данных...</p>
+    </div>
+    
+    <div class="info-box">
+      <strong>🔐 Токен</strong>
+      <p id="tokenInfo">Получение токена...</p>
+    </div>
+    
+    <button class="btn-primary" onclick="authenticateWithTelegram()">
+      ✓ Подтвердить через Telegram
+    </button>
+    
+    <button class="btn-secondary" onclick="testApi()">
+      🧪 Тестовый запрос
+    </button>
+    
+    <div id="result" class="result"></div>
+  </div>
+
+  <script>
+    const tg = window.Telegram?.WebApp;
+    
+    if (tg) {
+      tg.expand();
+      tg.enableClosingConfirmation();
+    }
+    
+    async function authenticateWithTelegram() {
+      const resultDiv = document.getElementById('result');
+      try {
+        if (!tg) {
+          resultDiv.textContent = '❌ Telegram WebApp не доступен';
+          resultDiv.classList.add('show');
+          return;
+        }
+        
+        const initData = tg.initData;
+        if (!initData) {
+          resultDiv.textContent = '❌ initData не найдена';
+          resultDiv.classList.add('show');
+          return;
+        }
+        
+        const response = await fetch('/auth/telegram', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ initData })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+          localStorage.setItem('token', data.token);
+          resultDiv.innerHTML = '✅ Успешная аутентификация!<br>Токен сохранен.';
+          resultDiv.classList.add('show');
+          document.getElementById('status').textContent = '✅ Авторизован';
+        } else {
+          resultDiv.textContent = '❌ Ошибка: ' + data.error;
+          resultDiv.classList.add('show');
+        }
+      } catch (err) {
+        resultDiv.textContent = '❌ Ошибка: ' + err.message;
+        resultDiv.classList.add('show');
+      }
+    }
+    
+    async function testApi() {
+      const resultDiv = document.getElementById('result');
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch('/me', {
+          headers: { 'Authorization': 'Bearer ' + (token || '') }
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+          resultDiv.innerHTML = `✅ Запрос успешен<br><strong>ID:</strong> ${data.telegramId}<br><strong>Статус:</strong> ${data.status}`;
+          resultDiv.classList.add('show');
+        } else {
+          resultDiv.textContent = '❌ Ошибка: ' + data.error;
+          resultDiv.classList.add('show');
+        }
+      } catch (err) {
+        resultDiv.textContent = '❌ Ошибка: ' + err.message;
+        resultDiv.classList.add('show');
+      }
+    }
+    
+    // Инициализация
+    if (tg) {
+      document.getElementById('status').textContent = '✅ Telegram доступен';
+      document.getElementById('userInfo').innerHTML = `<strong>ID:</strong> ${tg.initDataUnsafe?.user?.id || 'N/A'}<br><strong>Имя:</strong> ${tg.initDataUnsafe?.user?.first_name || 'N/A'}`;
+    } else {
+      document.getElementById('status').textContent = '⚠️ Telegram недоступен';
+      document.getElementById('userInfo').textContent = 'Откройте из Телеграма';
+    }
+  </script>
 </body>
 </html>
