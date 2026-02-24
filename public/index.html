@@ -406,6 +406,116 @@
       background: rgba(212, 175, 55, 0.2);
       color: #d4af37;
     }
+
+    .wallet-card {
+      background: linear-gradient(135deg, rgba(76, 175, 80, 0.1) 0%, rgba(212, 175, 55, 0.05) 100%);
+      border-radius: 16px;
+      padding: 25px;
+      margin-bottom: 20px;
+      border: 2px solid rgba(212, 175, 55, 0.3);
+      text-align: center;
+      backdrop-filter: blur(10px);
+    }
+
+    .wallet-balance {
+      font-size: 36px;
+      font-weight: 700;
+      color: #d4af37;
+      margin: 10px 0;
+      text-shadow: 0 2px 10px rgba(212, 175, 55, 0.3);
+    }
+
+    .wallet-label {
+      font-size: 14px;
+      color: rgba(255,255,255,0.7);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .topup-form {
+      background: rgba(255,255,255,0.05);
+      padding: 20px;
+      border-radius: 12px;
+      margin-bottom: 15px;
+      border: 1px solid rgba(212, 175, 55, 0.2);
+    }
+
+    .form-group {
+      margin-bottom: 15px;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 12px;
+      color: rgba(255,255,255,0.7);
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .form-group input,
+    .form-group select {
+      width: 100%;
+      padding: 12px;
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(212, 175, 55, 0.2);
+      border-radius: 8px;
+      color: #fff;
+      font-size: 14px;
+      transition: all 0.3s;
+    }
+
+    .form-group input:focus,
+    .form-group select:focus {
+      outline: none;
+      border-color: #d4af37;
+      background: rgba(212, 175, 55, 0.1);
+    }
+
+    .topup-amounts {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 15px;
+    }
+
+    .amount-btn {
+      background: rgba(212, 175, 55, 0.1);
+      border: 1px solid rgba(212, 175, 55, 0.3);
+      color: #d4af37;
+      padding: 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 13px;
+      transition: all 0.3s;
+    }
+
+    .amount-btn:hover {
+      background: rgba(212, 175, 55, 0.2);
+      border-color: #d4af37;
+    }
+
+    .transaction-item {
+      background: rgba(255,255,255,0.05);
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 10px;
+      border-left: 3px solid #d4af37;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+    }
+
+    .transaction-type {
+      color: #d4af37;
+      font-weight: 600;
+    }
+
+    .transaction-amount {
+      color: rgba(255,255,255,0.8);
+    }
   </style>
 </head>
 <body>
@@ -417,13 +527,41 @@
 
     <div class="tabs">
       <button class="tab-btn active" onclick="switchTab('packages')">🛒 Магазин</button>
-      <button class="tab-btn" onclick="switchTab('subscriptions')">📦 Мои подписки</button>
+      <button class="tab-btn" onclick="switchTab('game')">🎮 Игра</button>
+      <button class="tab-btn" onclick="switchTab('wallet')">💰 Кошелек</button>
+      <button class="tab-btn" onclick="switchTab('subscriptions')">📦 Подписки</button>
       <button class="tab-btn" onclick="switchTab('profile')">👤 Профиль</button>
     </div>
 
     <!-- Магазин -->
     <div id="packages" class="tab-content active">
       <div id="packagesContainer" class="loading">Загрузка пакетов...</div>
+    </div>
+
+    <!-- Игра -->
+    <div id="game" class="tab-content">
+      <div id="gameContainer">
+        <div style="text-align: center; padding: 20px;">
+          <h3>🎮 Flappy Bird</h3>
+          <p style="font-size: 14px; color: rgba(255,255,255,0.7); margin: 10px 0;">Получай монеты за очки!</p>
+          <p style="font-size: 12px; color: #d4af37; margin-bottom: 20px;">1 очко = 0.1 монеты</p>
+          <canvas id="gameCanvas" width="300" height="400" style="border: 2px solid #d4af37; border-radius: 10px; display: block; margin: 0 auto 15px; background: #1a1a2e;"></canvas>
+          <div style="font-size: 14px; margin-bottom: 15px;">
+            <p>Очки: <span id="gameScore" style="color: #d4af37; font-weight: bold;">0</span></p>
+            <p style="color: rgba(255,255,255,0.7); margin-top: 5px;">Нажмите на экран или пробел для прыжка</p>
+          </div>
+          <button class="btn" onclick="startGame()" id="gameBtn">▶ Начать игру</button>
+          <div id="gameOverMsg" style="display: none; margin-top: 15px; font-size: 14px;">
+            <p style="color: #4CAF50;">✅ Игра окончена!</p>
+            <p id="gameRewardMsg"></p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Кошелек -->
+    <div id="wallet" class="tab-content">
+      <div id="walletContainer" class="loading">Загрузка кошелька...</div>
     </div>
 
     <!-- Подписки -->
@@ -482,6 +620,7 @@
 
         // Загружаем данные
         await loadPackages();
+        await loadWallet();
         await loadSubscriptions();
         await loadProfile();
       } catch (err) {
@@ -735,6 +874,317 @@
       } catch (err) {
         console.error('Complete payment error:', err);
         alert('❌ Ошибка: ' + err.message);
+      }
+    }
+
+    async function loadWallet() {
+      try {
+        console.log('Loading wallet...');
+        const response = await fetch('/wallet/balance', {
+          headers: { 'Authorization': 'Bearer ' + userToken }
+        });
+
+        if (!response.ok) throw new Error('Failed to load wallet');
+
+        const wallet = await response.json();
+        console.log('Wallet loaded:', wallet);
+
+        let html = `
+          <div class="wallet-card">
+            <div class="wallet-label">💰 Ваш баланс</div>
+            <div class="wallet-balance">${wallet.balance.toFixed(2)}</div>
+            <div style="font-size: 12px; color: rgba(255,255,255,0.6); margin-top: 10px;">
+              Всего получено: ${wallet.totalEarned.toFixed(2)} | Потрачено: ${wallet.totalSpent.toFixed(2)}
+            </div>
+          </div>
+
+          <div class="topup-form">
+            <h3 style="margin-bottom: 15px; color: #d4af37;">➕ Пополнить баланс</h3>
+            
+            <div style="margin-bottom: 15px;">
+              <p style="font-size: 12px; color: rgba(255,255,255,0.6); margin-bottom: 10px;">Быстрые суммы:</p>
+              <div class="topup-amounts">
+                <button class="amount-btn" onclick="topupQuick(10)">+10</button>
+                <button class="amount-btn" onclick="topupQuick(50)">+50</button>
+                <button class="amount-btn" onclick="topupQuick(100)">+100</button>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>Своя сумма</label>
+              <input type="number" id="topupAmount" placeholder="Введите сумму" min="1" max="10000">
+            </div>
+
+            <div class="form-group">
+              <label>Способ оплаты</label>
+              <select id="topupMethod">
+                <option value="card">💳 Карта</option>
+                <option value="crypto">₿ Криптовалюта</option>
+              </select>
+            </div>
+
+            <button class="btn" onclick="topupBalance()" style="width: 100%;">Пополнить</button>
+          </div>
+
+          <div style="margin-top: 20px;">
+            <h3 style="margin-bottom: 15px; color: #d4af37;">📜 История операций</h3>
+            <div id="walletHistory"></div>
+          </div>
+        `;
+
+        document.getElementById('walletContainer').innerHTML = html;
+        await loadWalletHistory();
+      } catch (err) {
+        console.error('Load wallet error:', err);
+        document.getElementById('walletContainer').innerHTML = `<div class="error-msg">❌ Ошибка: ${err.message}</div>`;
+      }
+    }
+
+    async function loadWalletHistory() {
+      try {
+        const response = await fetch('/wallet/history', {
+          headers: { 'Authorization': 'Bearer ' + userToken }
+        });
+
+        if (!response.ok) throw new Error('Failed to load history');
+
+        const history = await response.json();
+        console.log('Wallet history:', history);
+
+        let html = '';
+        if (history.length === 0) {
+          html = '<div class="no-data">Нет операций</div>';
+        } else {
+          history.forEach(tx => {
+            const date = new Date(tx.createdAt).toLocaleDateString('ru-RU', { 
+              month: 'short', 
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit'
+            });
+            const typeEmoji = tx.type === 'topup' ? '⬆️' : '⬇️';
+            const typeText = tx.type === 'topup' ? 'Пополнение' : 'Трата';
+            
+            html += `
+              <div class="transaction-item">
+                <div>
+                  <div class="transaction-type">${typeEmoji} ${typeText}</div>
+                  <div style="font-size: 11px; color: rgba(255,255,255,0.5); margin-top: 3px;">${date}</div>
+                </div>
+                <div class="transaction-amount">${tx.type === 'topup' ? '+' : '-'}${tx.amount.toFixed(2)}</div>
+              </div>
+            `;
+          });
+        }
+
+        document.getElementById('walletHistory').innerHTML = html;
+      } catch (err) {
+        console.error('Load history error:', err);
+      }
+    }
+
+    async function topupQuick(amount) {
+      document.getElementById('topupAmount').value = amount;
+    }
+
+    async function topupBalance() {
+      try {
+        const amount = parseFloat(document.getElementById('topupAmount').value);
+        const method = document.getElementById('topupMethod').value;
+
+        if (!amount || amount <= 0) {
+          alert('❌ Введите корректную сумму');
+          return;
+        }
+
+        const response = await fetch('/wallet/topup', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + userToken
+          },
+          body: JSON.stringify({ amount, method, description: `Topup via ${method}` })
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error);
+        }
+
+        const data = await response.json();
+        alert(`✅ Баланс пополнен на ${amount}!`);
+        document.getElementById('topupAmount').value = '';
+        await loadWallet();
+      } catch (err) {
+        alert('❌ Ошибка: ' + err.message);
+      }
+    }
+
+    // ========== FLAPPY BIRD ИГРА ==========
+    let gameRunning = false;
+    let gameCanvas = null;
+    let gameCtx = null;
+    let bird = null;
+    let pipes = [];
+    let score = 0;
+    let gameSpeed = 5;
+
+    class Bird {
+      constructor() {
+        this.x = 50;
+        this.y = 150;
+        this.width = 20;
+        this.height = 20;
+        this.gravity = 0.4;
+        this.velocity = 0;
+        this.maxVelocity = 10;
+      }
+
+      jump() {
+        this.velocity = -10;
+      }
+
+      update() {
+        this.velocity += this.gravity;
+        this.velocity = Math.min(this.velocity, this.maxVelocity);
+        this.y += this.velocity;
+      }
+
+      draw(ctx) {
+        ctx.fillStyle = '#FFD700';
+        ctx.beginPath();
+        ctx.arc(this.x + this.width / 2, this.y + this.height / 2, this.width / 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      isColliding(pipe) {
+        return !(this.x + this.width < pipe.x ||
+                 this.x > pipe.x + pipe.width ||
+                 this.y + this.height < pipe.top ||
+                 this.y > pipe.bottom);
+      }
+    }
+
+    class Pipe {
+      constructor(x) {
+        this.x = x;
+        this.width = 60;
+        this.gap = 100;
+        this.top = Math.floor(Math.random() * (gameCanvas.height - this.gap - 50)) + 25;
+        this.bottom = this.top + this.gap;
+      }
+
+      update() {
+        this.x -= gameSpeed;
+      }
+
+      draw(ctx) {
+        ctx.fillStyle = '#4CAF50';
+        // Top pipe
+        ctx.fillRect(this.x, 0, this.width, this.top);
+        // Bottom pipe
+        ctx.fillRect(this.x, this.bottom, this.width, gameCanvas.height - this.bottom);
+      }
+    }
+
+    function startGame() {
+      gameCanvas = document.getElementById('gameCanvas');
+      gameCtx = gameCanvas.getContext('2d');
+      
+      bird = new Bird();
+      pipes = [];
+      score = 0;
+      gameRunning = true;
+
+      document.getElementById('gameBtn').textContent = '⏸ Пауза';
+      document.getElementById('gameOverMsg').style.display = 'none';
+      document.getElementById('gameScore').textContent = '0';
+
+      gameCanvas.addEventListener('click', () => bird.jump());
+      document.addEventListener('keydown', (e) => {
+        if (e.code === 'Space') {
+          e.preventDefault();
+          bird.jump();
+        }
+      });
+
+      gameLoop();
+    }
+
+    function gameLoop() {
+      if (!gameRunning) return;
+
+      // Draw background
+      gameCtx.fillStyle = '#1a1a2e';
+      gameCtx.fillRect(0, 0, gameCanvas.width, gameCanvas.height);
+
+      // Update bird
+      bird.update();
+      bird.draw(gameCtx);
+
+      // Add pipes
+      if (pipes.length === 0 || pipes[pipes.length - 1].x < gameCanvas.width - 200) {
+        pipes.push(new Pipe(gameCanvas.width));
+      }
+
+      // Update and draw pipes
+      pipes.forEach((pipe, index) => {
+        pipe.update();
+        pipe.draw(gameCtx);
+
+        // Check collision
+        if (bird.isColliding(pipe)) {
+          endGame();
+          return;
+        }
+
+        // Passed pipe
+        if (pipe.x + pipe.width < bird.x && !pipe.passed) {
+          pipe.passed = true;
+          score++;
+          document.getElementById('gameScore').textContent = score;
+        }
+      });
+
+      // Remove off-screen pipes
+      pipes = pipes.filter(p => p.x + p.width > 0);
+
+      // Check boundaries
+      if (bird.y < 0 || bird.y + bird.height > gameCanvas.height) {
+        endGame();
+        return;
+      }
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    async function endGame() {
+      gameRunning = false;
+      document.getElementById('gameBtn').textContent = '▶ Начать заново';
+
+      // Сохраняем результат и получаем награду
+      try {
+        const response = await fetch('/game/score', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + userToken
+          },
+          body: JSON.stringify({ score, game: 'flappy_bird' })
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const coinsEarned = data.coinsEarned;
+          
+          document.getElementById('gameOverMsg').style.display = 'block';
+          document.getElementById('gameRewardMsg').innerHTML = `
+            🎉 Ты набрал ${score} очков и получил ${coinsEarned} монет!<br>
+            <span style="font-size: 12px; color: rgba(255,255,255,0.7);">Баланс: ${data.newBalance}</span>
+          `;
+        }
+      } catch (err) {
+        console.error('Error saving score:', err);
       }
     }
 

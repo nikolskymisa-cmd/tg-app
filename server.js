@@ -16,7 +16,14 @@ import {
   getTransactionByOrderId,
   createSubscription,
   createPackage,
-  initDb
+  initDb,
+  getOrCreateWallet,
+  getWallet,
+  addBalance,
+  spendBalance,
+  getWalletHistory,
+  addGameScore,
+  getTopScores
 } from "./db.js";
 import { generateVpnKey, generateVpnConfig } from "./payment.js";
 import BybitPayment from "./payment.js";
@@ -388,6 +395,105 @@ app.post("/vpn/complete-payment", auth, async (req, res) => {
       vpnKey,
       message: 'Subscription created successfully'
     });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- WALLET API ---
+app.get("/wallet/balance", auth, async (req, res) => {
+  try {
+    const wallet = await getOrCreateWallet(req.user.userId);
+    res.json(wallet);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/wallet/topup", auth, async (req, res) => {
+  try {
+    const { amount, method, description } = req.body;
+    
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ error: "Valid amount required" });
+    }
+
+    // В реальной системе здесь проверялась бы оплата (Stripe, etc)
+    // Для сейчас просто добавляем баланс
+    const wallet = await addBalance(req.user.userId, amount, description || `Topup via ${method || 'card'}`);
+
+    res.json({
+      success: true,
+      wallet,
+      message: `Added ${amount} to your account`
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/wallet/history", auth, async (req, res) => {
+  try {
+    const history = await getWalletHistory(req.user.userId);
+    res.json(history);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/wallet/spend", auth, async (req, res) => {
+  try {
+    const { amount, description } = req.body;
+    
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ error: "Valid amount required" });
+    }
+
+    const wallet = await spendBalance(req.user.userId, amount, description || "VPN purchase");
+
+    res.json({
+      success: true,
+      wallet,
+      message: `Spent ${amount} coins`
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- GAME API ---
+app.post("/game/score", auth, async (req, res) => {
+  try {
+    const { score, game } = req.body;
+    
+    if (score === undefined || score < 0) {
+      return res.status(400).json({ error: "Valid score required" });
+    }
+
+    // Вычисляем награду: 1 очко = 0.1 монеты, минимум 1
+    const coinsEarned = Math.max(1, Math.floor(score / 10));
+
+    const gameId = await addGameScore(req.user.userId, score, coinsEarned);
+    const wallet = await getWallet(req.user.userId);
+    const topScores = await getTopScores(5);
+
+    res.json({
+      success: true,
+      gameId,
+      score,
+      coinsEarned,
+      newBalance: wallet.balance,
+      topScores
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/game/leaderboard", async (req, res) => {
+  try {
+    const scores = await getTopScores(20);
+    res.json(scores);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

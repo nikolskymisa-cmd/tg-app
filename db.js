@@ -90,6 +90,42 @@ export async function initDb() {
       FOREIGN KEY(packageId) REFERENCES vpn_packages(id)
     )
   `);
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS wallets (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      userId INTEGER UNIQUE NOT NULL,
+      balance REAL DEFAULT 0,
+      totalEarned REAL DEFAULT 0,
+      totalSpent REAL DEFAULT 0,
+      updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(userId) REFERENCES users(id)
+    )
+  `);
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS wallet_transactions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      userId INTEGER NOT NULL,
+      type TEXT NOT NULL,
+      amount REAL NOT NULL,
+      description TEXT,
+      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(userId) REFERENCES users(id)
+    )
+  `);
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS game_scores (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      userId INTEGER NOT NULL,
+      game TEXT DEFAULT 'flappy_bird',
+      score INTEGER NOT NULL,
+      coinsEarned INTEGER NOT NULL,
+      playedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(userId) REFERENCES users(id)
+    )
+  `);
 }
 
 // --- Функции ---
@@ -188,6 +224,94 @@ export async function createPackage(name, description, durationDays, price, serv
   `, [name, description || '', durationDays, price, servers]);
   
   return result.lastID;
+}
+
+// --- Функции кошелька ---
+export async function getOrCreateWallet(userId) {
+  let wallet = await get('SELECT * FROM wallets WHERE userId = ?', [userId]);
+  if (!wallet) {
+    await run('INSERT INTO wallets (userId, balance) VALUES (?, 0)', [userId]);
+    wallet = await get('SELECT * FROM wallets WHERE userId = ?', [userId]);
+  }
+  return wallet;
+}
+
+export async function getWallet(userId) {
+  return await get('SELECT * FROM wallets WHERE userId = ?', [userId]);
+}
+
+export async function addBalance(userId, amount, description) {
+  // Получаем или создаем кошелек
+  await getOrCreateWallet(userId);
+  
+  // Добавляем транзакцию
+  await run(`
+    INSERT INTO wallet_transactions (userId, type, amount, description)
+    VALUES (?, 'topup', ?, ?)
+  `, [userId, amount, description || 'Account topup']);
+  
+  // Обновляем баланс
+  await run(`
+    UPDATE wallets 
+    SET balance = balance + ?, totalEarned = totalEarned + ?, updatedAt = CURRENT_TIMESTAMP
+    WHERE userId = ?
+  `, [amount, amount, userId]);
+  
+  return await getWallet(userId);
+}
+
+export async function spendBalance(userId, amount, description) {
+  const wallet = await getWallet(userId);
+  if (!wallet) throw new Error('Wallet not found');
+  if (wallet.balance < amount) throw new Error('Insufficient balance');
+  
+  // Добавляем транзакцию
+  await run(`
+    INSERT INTO wallet_transactions (userId, type, amount, description)
+    VALUES (?, 'spend', ?, ?)
+  `, [userId, amount, description || 'VPN purchase']);
+  
+  // Обновляем баланс
+  await run(`
+    UPDATE wallets 
+    SET balance = balance - ?, totalSpent = totalSpent + ?, updatedAt = CURRENT_TIMESTAMP
+    WHERE userId = ?
+  `, [amount, amount, userId]);
+  
+  return await getWallet(userId);
+}
+
+export async function getWalletHistory(userId, limit = 50) {
+  return await all(`
+    SELECT * FROM wallet_transactions 
+    WHERE userId = ? 
+    ORDER BY createdAt DESC 
+    LIMIT ?
+  `, [userId, limit]);
+}
+
+export async function addGameScore(userId, score, coinsEarned = 0) {
+  const result = await run(`
+    INSERT INTO game_scores (userId, score, coinsEarned)
+    VALUES (?, ?, ?)
+  `, [userId, score, coinsEarned]);
+  
+  // Добавляем монеты в кошелек
+  if (coinsEarned > 0) {
+    await addBalance(userId, coinsEarned, `Game reward: ${score} points`);
+  }
+  
+  return result.lastID;
+}
+
+export async function getTopScores(limit = 10) {
+  return await all(`
+    SELECT u.firstName, gs.score, gs.coinsEarned, gs.playedAt
+    FROM game_scores gs
+    JOIN users u ON gs.userId = u.id
+    ORDER BY gs.score DESC
+    LIMIT ?
+  `, [limit]);
 }
 
 export { run, get, all };
