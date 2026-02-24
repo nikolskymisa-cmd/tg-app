@@ -1041,7 +1041,7 @@
       }
 
       jump() {
-        this.velocity = -5; // Было -6
+        this.velocity = -3; // Уменьшено с -5 (в 1.67 раза слабее)
       }
 
       update() {
@@ -1185,6 +1185,8 @@
         if (!pipe.passed && pipe.x + pipe.width < bird.x) {
           pipe.passed = true;
           score++;
+          // Прогрессивное ускорение: каждые 3 очка +10% скорости
+          gameSpeed = 1 + Math.floor(score / 3) * 0.1;
           document.getElementById('gameScore').textContent = score;
         }
       };
