@@ -1027,7 +1027,7 @@
     let bird = null;
     let pipes = [];
     let score = 0;
-    let gameSpeed = 2; // Было 5 - теперь медленнее
+    let gameSpeed = 1; // Уменьшено с 2 - медленнее в 2 раза
 
     class Bird {
       constructor() {
@@ -1058,11 +1058,16 @@
       }
 
       isColliding(pipe) {
-        // Убираем margin - проверяем точные границы
-        return !(this.x + this.width < pipe.x ||
-                 this.x > pipe.x + pipe.width ||
-                 this.y + this.height < pipe.top ||
-                 this.y > pipe.bottom);
+        // Проверяем коллизию правильно:
+        // 1. Птица должна пересекаться по X с трубой
+        const overlapsX = this.x + this.width > pipe.x && this.x < pipe.x + pipe.width;
+        if (!overlapsX) return false; // Если не пересекаются по X, нет коллизии
+        
+        // 2. Коллизия только если птица касается ЗЕЛЕНОЙ части (выше top или ниже bottom)
+        const hitsTopPipe = this.y < pipe.top;
+        const hitsBottomPipe = this.y + this.height > pipe.bottom;
+        
+        return hitsTopPipe || hitsBottomPipe;
       }
     }
 
