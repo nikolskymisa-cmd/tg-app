@@ -11,8 +11,12 @@ import {
   getUserSubscriptions,
   createTransaction,
   getUserById,
+  updateTransactionStatus,
+  getTransaction,
+  getTransactionByOrderId,
   initDb
 } from "./db.js";
+import { generateVpnKey, generateVpnConfig } from "./payment.js";
 
 const app = express();
 app.use(express.json());
@@ -151,6 +155,76 @@ app.get("/vpn/subscriptions", auth, async (req, res) => {
   try {
     const subscriptions = await getUserSubscriptions(req.user.userId);
     res.json(subscriptions);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- PAYMENT API ---
+app.post("/vpn/payment", auth, async (req, res) => {
+  try {
+    const { packageId, method } = req.body;
+    if (!packageId) return res.status(400).json({ error: "packageId required" });
+    if (!method) return res.status(400).json({ error: "method required" });
+
+    const pkg = await getPackageById(packageId);
+    if (!pkg) return res.status(404).json({ error: "Package not found" });
+
+    // Создаем транзакцию
+    const transactionId = await createTransaction(req.user.userId, packageId, pkg.price);
+
+    if (method === 'crypto') {
+      // Генерируем ссылку на Bybit платеж
+      const orderId = `vpn-${req.user.userId}-${transactionId}`;
+      const paymentUrl = `https://payment.bybit.com/?order_id=${orderId}&amount=${pkg.price}&currency=USDT`;
+      
+      // Сохраняем данные платежа
+      await updateTransactionStatus(transactionId, 'pending', {
+        orderId,
+        method: 'crypto',
+        expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString()
+      });
+
+      res.json({
+        paymentUrl,
+        paymentData: { orderId },
+        transactionId
+      });
+    } else {
+      // Для карточек - в боевом режиме интегрируем Stripe/Paypal
+      res.json({
+        paymentUrl: null,
+        paymentData: { method: 'card' },
+        transactionId
+      });
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/vpn/payment-status/:orderId", auth, async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    
+    // В реальной системе здесь проверяется статус у Bybit API
+    // Для тестирования возвращаем mock данные
+    
+    // Ищем транзакцию по orderId
+    const allTransactions = await getVpnPackages(); // Получаем данные для демо
+    
+    // В реальной системе:
+    // 1. Проверяем статус платежа у Bybit через API
+    // 2. Если статус = "success", генерируем VPN ключ
+    // 3. Создаем подписку в БД
+    
+    const vpnKey = generateVpnKey();
+    
+    res.json({
+      status: 'completed',
+      vpnKey,
+      message: 'Payment verified and key generated'
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

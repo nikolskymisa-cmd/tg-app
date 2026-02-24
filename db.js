@@ -83,6 +83,8 @@ export async function initDb() {
       packageId INTEGER NOT NULL,
       amount REAL NOT NULL,
       status TEXT DEFAULT 'pending',
+      paymentMethod TEXT DEFAULT 'crypto',
+      paymentData TEXT,
       createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY(userId) REFERENCES users(id),
       FOREIGN KEY(packageId) REFERENCES vpn_packages(id)
@@ -146,4 +148,20 @@ export async function createTransaction(userId, packageId, amount) {
   return result.lastID;
 }
 
-export default { getOrCreateUser, getVpnPackages, getPackageById, createSubscription, getUserSubscriptions, getUserById, createTransaction, initDb };
+export async function updateTransactionStatus(transactionId, status, paymentData = {}) {
+  await run(`
+    UPDATE transactions 
+    SET status = ?, paymentData = ?
+    WHERE id = ?
+  `, [status, JSON.stringify(paymentData), transactionId]);
+}
+
+export async function getTransaction(transactionId) {
+  return await get('SELECT * FROM transactions WHERE id = ?', [transactionId]);
+}
+
+export async function getTransactionByOrderId(orderId) {
+  return await get('SELECT * FROM transactions WHERE paymentData LIKE ?', [`%"orderId":"${orderId}"%`]);
+}
+
+export default { getOrCreateUser, getVpnPackages, getPackageById, createSubscription, getUserSubscriptions, getUserById, createTransaction, updateTransactionStatus, getTransaction, getTransactionByOrderId, initDb };
