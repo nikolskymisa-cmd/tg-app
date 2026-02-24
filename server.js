@@ -7,15 +7,14 @@ import { fileURLToPath } from "url";
 const app = express();
 app.use(express.json());
 
-// Раздаём public/*
+// --- статика (public/index.html) ---
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 app.use(express.static(path.join(__dirname, "public")));
 
-const BOT_TOKEN = process.env.BOT_TOKEN || "";       // пока может быть пустой локально
+const BOT_TOKEN = process.env.BOT_TOKEN || "";
 const JWT_SECRET = process.env.JWT_SECRET || "dev_secret_change_me";
 
-// --- Проверка initData от Telegram ---
 function verifyTelegramInitData(initData) {
   const params = new URLSearchParams(initData);
   const hash = params.get("hash");
@@ -27,15 +26,8 @@ function verifyTelegramInitData(initData) {
     .map(([k,v]) => `${k}=${v}`)
     .join("\n");
 
-  const secretKey = crypto
-    .createHmac("sha256", "WebAppData")
-    .update(BOT_TOKEN)
-    .digest();
-
-  const computedHash = crypto
-    .createHmac("sha256", secretKey)
-    .update(dataCheckString)
-    .digest("hex");
+  const secretKey = crypto.createHmac("sha256", "WebAppData").update(BOT_TOKEN).digest();
+  const computedHash = crypto.createHmac("sha256", secretKey).update(dataCheckString).digest("hex");
 
   const ok = crypto.timingSafeEqual(Buffer.from(computedHash), Buffer.from(hash));
   if (!ok) return { ok: false, error: "bad hash" };
@@ -50,14 +42,11 @@ function verifyTelegramInitData(initData) {
 app.post("/auth/telegram", (req, res) => {
   const { initData } = req.body || {};
   if (!initData) return res.status(400).json({ error: "initData required" });
-
-  // Если ты открыл страницу НЕ из Telegram — initData будет пустой/невалидной
   if (!BOT_TOKEN) return res.status(500).json({ error: "BOT_TOKEN not set on server" });
 
   const v = verifyTelegramInitData(initData);
   if (!v.ok) return res.status(401).json({ error: v.error });
 
-  // Простейшая проверка "свежести" (24 часа)
   const now = Math.floor(Date.now() / 1000);
   if (v.auth_date && now - v.auth_date > 86400) {
     return res.status(401).json({ error: "initData expired" });
@@ -65,7 +54,6 @@ app.post("/auth/telegram", (req, res) => {
 
   const telegramId = v.user?.id;
   const token = jwt.sign({ telegramId }, JWT_SECRET, { expiresIn: "7d" });
-
   res.json({ token });
 });
 
@@ -82,16 +70,16 @@ function auth(req, res, next) {
 }
 
 app.get("/me", auth, (req, res) => {
-  res.json({
-    telegramId: req.user.telegramId,
-    status: "active",
-    plan: "demo"
-  });
+  res.json({ telegramId: req.user.telegramId, status: "active", plan: "demo" });
 });
 
 app.get("/health", (req, res) => res.send("OK"));
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log("Started on http://localhost:" + PORT);
+// ВАЖНО: не делай app.get("/") => "OK" !!!
+// Если очень надо, можно так, чтобы отдавал index:
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
 });
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log("Started on " + PORT));
