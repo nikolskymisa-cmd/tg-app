@@ -3,6 +3,7 @@ import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import path from "path";
 import { fileURLToPath } from "url";
+import { config } from "./config.js";
 
 const app = express();
 app.use(express.json());
@@ -24,8 +25,8 @@ const __dirname = path.dirname(__filename);
 app.use(express.static(path.join(__dirname, "public")));
 
 // --- конфиги ---
-const BOT_TOKEN = process.env.BOT_TOKEN || "";
-const JWT_SECRET = process.env.JWT_SECRET || "dev_secret_change_me";
+const BOT_TOKEN = config.BOT_TOKEN;
+const JWT_SECRET = config.JWT_SECRET;
 
 // --- verify initData ---
 function verifyTelegramInitData(initData) {
@@ -93,5 +94,5 @@ app.get("/me", auth, (req, res) => {
 });
 
 // --- start ---
-const PORT = process.env.PORT || 3000;
+const PORT = config.PORT;
 app.listen(PORT, () => console.log("Started on " + PORT));
