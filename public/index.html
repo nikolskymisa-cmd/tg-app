@@ -658,25 +658,57 @@
           throw new Error(error.error || 'Payment failed');
         }
 
-        const { paymentUrl, paymentData } = await response.json();
+        const paymentData = await response.json();
         console.log('Payment data received:', paymentData);
         
         if (method === 'crypto') {
-          alert(`ℹ️ Демо режим: Нажмите OK для завершения оплаты (в реальности откроется Bybit)`);
-          
-          // В реальности откроется Bybit
-          // if (paymentUrl) {
-          //   window.open(paymentUrl, '_blank');
-          // }
-          
-          // Для демо сразу активируем подписку
-          await completePayment(packageId);
-        } else {
+          if (paymentData.paymentUrl) {
+            // Открываем реальный Bybit платеж
+            alert('⏳ Переходим на Bybit для оплаты...');
+            window.open(paymentData.paymentUrl, '_blank');
+            
+            // Начинаем проверять статус платежа
+            checkPaymentStatus(paymentData.orderId, packageId);
+          } else {
+            throw new Error('Payment URL not available');
+          }
+        } else if (method === 'card') {
           alert('💳 Оплата картой: в разработке');
         }
       } catch (err) {
         console.error('Payment error:', err);
         alert('❌ Ошибка при оплате: ' + err.message);
+      }
+    }
+
+    async function checkPaymentStatus(orderId, packageId, attempts = 0) {
+      if (attempts > 30) { // 30 попыток = ~5 минут
+        alert('⏱️ Время ожидания истекло. Проверьте статус платежа позже.');
+        return;
+      }
+
+      try {
+        const response = await fetch(`/vpn/payment-status/${orderId}`, {
+          headers: { 'Authorization': 'Bearer ' + userToken }
+        });
+
+        if (!response.ok) throw new Error('Failed to check status');
+
+        const status = await response.json();
+        console.log('Payment status:', status);
+
+        if (status.paid || status.status === 'completed') {
+          alert('✅ Платеж подтвержден! Активирую подписку...');
+          await completePayment(packageId);
+        } else {
+          // Ждем 10 секунд и пытаемся снова
+          console.log(`Payment pending, checking again... (attempt ${attempts + 1})`);
+          setTimeout(() => checkPaymentStatus(orderId, packageId, attempts + 1), 10000);
+        }
+      } catch (err) {
+        console.error('Check status error:', err);
+        // Пытаемся еще раз
+        setTimeout(() => checkPaymentStatus(orderId, packageId, attempts + 1), 10000);
       }
     }
 

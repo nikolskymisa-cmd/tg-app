@@ -157,11 +157,28 @@ export async function updateTransactionStatus(transactionId, status, paymentData
 }
 
 export async function getTransaction(transactionId) {
-  return await get('SELECT * FROM transactions WHERE id = ?', [transactionId]);
+  const trans = await get('SELECT * FROM transactions WHERE id = ?', [transactionId]);
+  if (trans && trans.paymentData) {
+    trans.paymentData = JSON.parse(trans.paymentData);
+  }
+  return trans;
 }
 
 export async function getTransactionByOrderId(orderId) {
-  return await get('SELECT * FROM transactions WHERE paymentData LIKE ?', [`%"orderId":"${orderId}"%`]);
+  // Получаем все транзакции и ищем по orderId в paymentData
+  const transactions = await all('SELECT * FROM transactions');
+  for (const trans of transactions) {
+    try {
+      const data = JSON.parse(trans.paymentData || '{}');
+      if (data.orderId === orderId) {
+        trans.paymentData = data;
+        return trans;
+      }
+    } catch (e) {
+      // Skip malformed JSON
+    }
+  }
+  return null;
 }
 
 export async function createPackage(name, description, durationDays, price, servers = 1) {

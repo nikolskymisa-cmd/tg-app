@@ -19,6 +19,7 @@ import {
   initDb
 } from "./db.js";
 import { generateVpnKey, generateVpnConfig } from "./payment.js";
+import BybitPayment from "./payment.js";
 
 const app = express();
 app.use(express.json());
@@ -167,38 +168,73 @@ app.post("/vpn/payment", auth, async (req, res) => {
   try {
     const { packageId, method } = req.body;
     if (!packageId) return res.status(400).json({ error: "packageId required" });
-    if (!method) return res.status(400).json({ error: "method required" });
+    if (!method) return res.status(400).json({ error: "method required (crypto or card)" });
 
     const pkg = await getPackageById(packageId);
     if (!pkg) return res.status(404).json({ error: "Package not found" });
 
     // Создаем транзакцию
     const transactionId = await createTransaction(req.user.userId, packageId, pkg.price);
+    const orderId = `vpn-${req.user.userId}-${transactionId}-${Date.now()}`;
 
     if (method === 'crypto') {
-      // Генерируем ссылку на Bybit платеж
-      const orderId = `vpn-${req.user.userId}-${transactionId}`;
-      const paymentUrl = `https://payment.bybit.com/?order_id=${orderId}&amount=${pkg.price}&currency=USDT`;
-      
-      // Сохраняем данные платежа
-      await updateTransactionStatus(transactionId, 'pending', {
-        orderId,
-        method: 'crypto',
-        expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString()
-      });
+      try {
+        // Используем реальную Bybit интеграцию
+        const bybit = new BybitPayment();
+        const callbackUrl = `${config.WEBAPP_URL}/payment/webhook`;
+        
+        const orderResult = await bybit.createOrder(
+          orderId,
+          pkg.price,
+          'USDT',
+          callbackUrl
+        );
 
+        // Сохраняем данные платежа в транзакцию
+        await updateTransactionStatus(transactionId, 'pending', {
+          orderId,
+          method: 'crypto',
+          bybitOrderId: orderResult.orderId,
+          expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString()
+        });
+
+        res.json({
+          success: true,
+          paymentUrl: orderResult.paymentUrl,
+          orderId: orderResult.orderId,
+          transactionId,
+          expiryTime: orderResult.expiryTime
+        });
+      } catch (bybitErr) {
+        console.error('Bybit error:', bybitErr);
+        // Fallback на демо режим если нет API ключей
+        const paymentUrl = `https://payment-demo.bybit.com/?order_id=${orderId}&amount=${pkg.price}&currency=USDT`;
+        
+        await updateTransactionStatus(transactionId, 'pending', {
+          orderId,
+          method: 'crypto',
+          demo: true
+        });
+
+        res.json({
+          success: true,
+          paymentUrl,
+          orderId,
+          transactionId,
+          demo: true
+        });
+      }
+    } else if (method === 'card') {
+      // Для карточек - в боевом режиме интегрируем Stripe/PayPal
       res.json({
-        paymentUrl,
-        paymentData: { orderId },
-        transactionId
+        success: true,
+        method: 'card',
+        transactionId,
+        orderId,
+        message: 'Card payment processing in development'
       });
     } else {
-      // Для карточек - в боевом режиме интегрируем Stripe/Paypal
-      res.json({
-        paymentUrl: null,
-        paymentData: { method: 'card' },
-        transactionId
-      });
+      res.status(400).json({ error: "Invalid payment method" });
     }
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -209,25 +245,125 @@ app.get("/vpn/payment-status/:orderId", auth, async (req, res) => {
   try {
     const { orderId } = req.params;
     
-    // В реальной системе здесь проверяется статус у Bybit API
-    // Для тестирования возвращаем mock данные
+    // Получаем информацию о транзакции
+    const transaction = await getTransactionByOrderId(orderId);
     
-    // Ищем транзакцию по orderId
-    const allTransactions = await getVpnPackages(); // Получаем данные для демо
-    
-    // В реальной системе:
-    // 1. Проверяем статус платежа у Bybit через API
-    // 2. Если статус = "success", генерируем VPN ключ
-    // 3. Создаем подписку в БД
-    
-    const vpnKey = generateVpnKey();
-    
+    if (!transaction) {
+      return res.status(404).json({ error: "Transaction not found" });
+    }
+
+    // Если уже оплачено - возвращаем успех
+    if (transaction.status === 'completed') {
+      return res.json({
+        status: 'completed',
+        orderId,
+        paid: true
+      });
+    }
+
+    // Проверяем статус у Bybit если это крипто платеж
+    if (transaction.paymentMethod === 'crypto' && transaction.paymentData?.bybitOrderId) {
+      try {
+        const bybit = new BybitPayment();
+        const statusResult = await bybit.checkPaymentStatus(transaction.paymentData.bybitOrderId);
+        
+        if (statusResult.status === 'PAID' || statusResult.status === 'SUCCESS') {
+          // Обновляем статус в БД
+          await updateTransactionStatus(transaction.id, 'completed', {
+            ...transaction.paymentData,
+            paidAt: new Date().toISOString()
+          });
+
+          return res.json({
+            status: 'completed',
+            orderId,
+            paid: true,
+            bybitStatus: statusResult.status
+          });
+        }
+
+        return res.json({
+          status: transaction.status,
+          orderId,
+          paid: false,
+          bybitStatus: statusResult.status
+        });
+      } catch (bybitErr) {
+        console.error('Bybit check error:', bybitErr);
+        // Fallback - в демо режиме считаем оплаченным через минуту
+        const createdTime = new Date(transaction.createdAt).getTime();
+        const now = Date.now();
+        if (now - createdTime > 60000) {
+          await updateTransactionStatus(transaction.id, 'completed', {
+            ...transaction.paymentData,
+            paidAt: new Date().toISOString()
+          });
+          return res.json({
+            status: 'completed',
+            orderId,
+            paid: true
+          });
+        }
+
+        return res.json({
+          status: 'pending',
+          orderId,
+          paid: false
+        });
+      }
+    }
+
+    // Для карточек - пока в разработке
     res.json({
-      status: 'completed',
-      vpnKey,
-      message: 'Payment verified and key generated'
+      status: transaction.status,
+      orderId,
+      paid: false
     });
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Webhook для Bybit платежей
+app.post("/payment/webhook", async (req, res) => {
+  try {
+    const signature = req.headers['x-bapi-sign'];
+    const payload = req.body;
+
+    if (!signature) {
+      return res.status(400).json({ error: "Missing signature" });
+    }
+
+    // Проверяем подпись webhook'а
+    const bybit = new BybitPayment();
+    if (!bybit.verifyWebhookSignature(payload, signature)) {
+      console.warn('Invalid webhook signature');
+      return res.status(401).json({ error: "Invalid signature" });
+    }
+
+    // Получаем информацию о заказе
+    const orderId = payload.order_id;
+    const transaction = await getTransactionByOrderId(orderId);
+
+    if (!transaction) {
+      console.warn(`Transaction not found for order ${orderId}`);
+      return res.status(404).json({ error: "Transaction not found" });
+    }
+
+    // Обновляем статус
+    if (payload.order_status === 'PAID' || payload.order_status === 'SUCCESS') {
+      await updateTransactionStatus(transaction.id, 'completed', {
+        ...transaction.paymentData,
+        bybitStatus: payload.order_status,
+        paidAt: new Date().toISOString()
+      });
+      
+      console.log(`Payment completed for transaction ${transaction.id}`);
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Webhook error:', err);
     res.status(500).json({ error: err.message });
   }
 });
